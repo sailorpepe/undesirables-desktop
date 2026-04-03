@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Sandbox environment required for Apple App Store & generic WKWebView deployments -->
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+    
+    <!-- Required to connect WebSockets and external API inferences (Ollama/ElizaOS) -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+    
+    <!-- MANDATORY: Tells macOS that this specific app binary is authorized to intercept hardware Microphone audio -->
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+    
+    <!-- MANDATORY: Optical Capture camera bindings -->
+    <key>com.apple.security.device.camera</key>
+    <true/>
+    
+    <!-- File access: user-selected via Tauri dialog -->
+    <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+    
+    <!-- File access: Downloads directory for export/save -->
+    <key>com.apple.security.files.downloads.read-write</key>
+    <true/>
+    
+    <!-- MANDATORY: Allow JIT compilation for Tauri's WebKit/WKWebView JavaScript engine -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    
+    <!-- MANDATORY: WebView requires unsigned executable memory for JS JIT -->
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    
+    <!-- MANDATORY: Allow bundled Python sidecar to load unsigned C-extensions (NumPy, librosa, torch .so/.dylib) -->
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+</dict>
+</plist>

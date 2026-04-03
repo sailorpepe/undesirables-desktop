@@ -1,0 +1,42 @@
+[package]
+name = "the-undesirables-desktop"
+version = "1.0.0"
+description = "The Undesirables AI Desktop Ecosystem — Tauri + FastMCP"
+authors = ["The Undesirables LLC"]
+license = "MIT"
+repository = "https://gitlab.com/meme-merchants/desktop"
+edition = "2021"
+rust-version = "1.77.2"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.5.6", features = [] }
+
+[dependencies]
+serde_json = "1.0.128"
+serde = { version = "1.0", features = ["derive"] }
+log = "0.4"
+tauri = { version = "2.10.3", features = ["protocol-asset"] }
+tauri-plugin-log = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-process = "2"
+tauri-plugin-updater = "2"
+reqwest = { version = "0.12", features = ["json"] }
+tokio = { version = "1", features = ["time"] }
+tauri-plugin-store = "2"
+tauri-plugin-stronghold = "2.3.1"
+tauri-plugin-opener = "2"
+keyring = "3.2"
+rand = "0.8"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
