@@ -1,0 +1,78 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "The_Undesirables",
+  "version": "1.0.0",
+  "identifier": "com.undesirables.desktop",
+  "build": {
+    "frontendDist": "../out",
+    "devUrl": "http://localhost:3001",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "The Undesirables Desktop GUI",
+        "width": 1200,
+        "height": 1024,
+        "resizable": true,
+        "fullscreen": false,
+        "minWidth": 800,
+        "minHeight": 600,
+        "dragDropEnabled": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' http://localhost:11434 http://127.0.0.1:11434 http://localhost:8000 http://127.0.0.1:8000 http://localhost:3000 http://localhost:3001 https://api.groq.com https://*.duckduckgo.com https://tcgcsv.com ipc: tauri:; img-src 'self' data: asset: blob:; media-src 'self' asset: blob: tauri:; worker-src 'self' blob:; form-action 'none'; base-uri 'none'",
+      "assetProtocol": {
+        "enable": true,
+        "scope": {
+          "allow": ["$HOME/Documents/**", "$DOWNLOAD/**", "$TEMP/**", "$APPLOCALDATA/**", "$DESKTOP/**", "$HOME/Movies/**"],
+          "deny": ["$HOME/.ssh/**", "$HOME/.gnupg/**", "$HOME/.aws/**", "$HOME/Library/**", "$HOME/.env", "$HOME/.bashrc", "$HOME/.zshrc", "$HOME/.config/**", "$HOME/.*/**"]
+        }
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "externalBin": [
+      "binaries/server"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "nsis": {
+        "displayLanguageSelector": false,
+        "installerIcon": "icons/icon.ico",
+        "installMode": "currentUser"
+      }
+    },
+    "linux": {
+      "appimage": {
+        "bundleMediaFramework": true
+      }
+    },
+    "macOS": {
+      "entitlements": "Entitlements.macOS.plist",
+      "infoPlist": "Info.plist",
+      "hardenedRuntime": true
+    },
+    "iOS": {
+      "infoPlist": "Info.plist"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEI2QkQ3MzRGMjU2OTRGQ0UKUldUT1Qya2xUM085dG8wUGdRa3ZnVFdKVEMyNlBRd05weWRYcWIzTjl2UVNvTGRRVXlaL0tLNjMK",
+      "endpoints": [
+        "https://gitlab.com/meme-merchants/desktop/-/releases/permalink/latest/downloads/latest.json"
+      ]
+    }
+  }
+}

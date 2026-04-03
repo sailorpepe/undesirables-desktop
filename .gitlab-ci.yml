@@ -1,0 +1,106 @@
+stages:
+  - build
+  - release
+
+variables:
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "20"
+  RUST_VERSION: "1.77.2"
+
+# Template for cross-platform Tauri builds
+.tauri_build:
+  stage: build
+  script:
+    # 1. Install Node
+    - npm install -g n
+    - n $NODE_VERSION
+    
+    # 2. Setup Rust (MED-6: Validated remote intercept hash integrity)
+    - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o rustup.sh
+    # Current pinned rustup-init script checksum (avoid network spoofing)
+    - echo "1fcc083a216e257e8ceeb8fb10bb245c38ac0df2d854ce45398dd26fdbbc6de3  rustup.sh" > rustup.sha256
+    - 'shasum -a 256 -c rustup.sha256 || { echo "FATAL: rustup.sh checksum mismatch!"; exit 1; }'
+    - sh rustup.sh -y --default-toolchain $RUST_VERSION
+    - source $HOME/.cargo/env
+    
+    # 3. Clone and Build Python sidecar conditionally based on OS
+    - git clone "https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/meme-merchants/undesirables-mcp-server.git" undesirables-mcp-server
+    - cd undesirables-mcp-server
+    - pip install -r requirements.txt pyinstaller
+    - |
+      if [ "$CI_JOB_NAME" == "build:macos" ]; then
+        rustup target add aarch64-apple-darwin x86_64-apple-darwin
+        pyinstaller server-aarch64-apple-darwin.spec
+        SPEC_OUTPUT="server-aarch64-apple-darwin"
+      elif [ "$CI_JOB_NAME" == "build:windows" ]; then
+        pyinstaller server-x86_64-pc-windows-msvc.spec
+        SPEC_OUTPUT="server-x86_64-pc-windows-msvc.exe"
+      else
+        pyinstaller server-x86_64-unknown-linux-gnu.spec
+        SPEC_OUTPUT="server-x86_64-unknown-linux-gnu"
+      fi
+    - rm -f ../undesirables-ui/src-tauri/binaries/server*
+    - mkdir -p ../undesirables-ui/src-tauri/binaries
+    - cp "dist/${SPEC_OUTPUT}" "../undesirables-ui/src-tauri/binaries/"
+    
+    # 4. Build Tauri App
+    - cd ../undesirables-ui
+    - npm install
+    - cargo tauri build
+    
+    # 5. Security Gates (CRIT-5 & HIGH-3: Gitleaks Supply Chain Scan)
+    - echo "Scanning all compiled assets and source codes for secret leakage..."
+    - |
+      if [ "$CI_JOB_NAME" == "build:macos" ]; then
+        brew install gitleaks
+      else
+        wget https://github.com/gitleaks/gitleaks/releases/download/v8.18.2/gitleaks_8.18.2_linux_x64.tar.gz
+        tar -xzf gitleaks_8.18.2_linux_x64.tar.gz gitleaks
+        sudo mv gitleaks /usr/local/bin/
+      fi
+    - gitleaks detect --no-git -v --source .
+  artifacts:
+    paths:
+      - src-tauri/target/release/bundle/*
+    expire_in: never
+
+publish-immutable-release:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  tags:
+    - saas-linux-small-amd64
+  rules:
+    - if: $CI_COMMIT_TAG
+  script:
+    - echo "Publishing Zero-Trust Release to GitLab..."
+    # Generate the release utilizing artifacts from the macos build
+    - |
+      release-cli create --name "The Undesirables GUI v1.0.0" \
+        --tag-name "$CI_COMMIT_TAG" \
+        --ref "$CI_COMMIT_SHA" \
+        --description "### 🔒 Official Release\nThis binary was compiled in a pristine cloud vault. No human accessed the build artifact." \
+        --assets-link "{\"name\":\"Download Mac Installer (.dmg)\",\"url\":\"${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_TAG}/download?job=build:macos\"}"
+
+
+build:macos:
+  extends: .tauri_build
+  tags:
+    - saas-macos-medium-m1
+  rules:
+    - if: $CI_COMMIT_TAG
+
+build:windows:
+  extends: .tauri_build
+  tags:
+    - saas-windows-medium-amd64
+  rules:
+    - if: $CI_COMMIT_TAG
+
+build:linux:
+  extends: .tauri_build
+  image: ubuntu:22.04
+  before_script:
+    - apt-get update
+    - apt-get install -y curl build-essential libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf python3 python3-pip
+  rules:
+    - if: $CI_COMMIT_TAG
