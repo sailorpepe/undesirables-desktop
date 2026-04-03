@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>NSCameraUsageDescription</key>
+    <string>The Undesirables GUI requires camera access to natively stream Trading Cards into the AI Optical pipeline.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>The Undesirables GUI requires microphone access when recording short 3-second holographic card tracking sweeps or using native voice dictation.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>The Undesirables OS natively parses continuous speech input into terminal neural buffers.</string>
+</dict>
+</plist>

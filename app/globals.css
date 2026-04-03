@@ -1,0 +1,82 @@
+@import "tailwindcss" source("../app");
+
+
+
+@theme {
+  --color-neon-primary: var(--theme-primary);
+  --color-neon-bg: var(--theme-bg);
+  --color-neon-card: var(--theme-card);
+  --color-neon-text: var(--theme-text);
+}
+
+:root {
+  /* Pastel Lime Green */
+  --theme-primary: #b4f7a6;
+  --theme-bg: #112d1c;
+  --theme-card: rgba(17, 45, 28, 0.85);
+  --theme-text: #eafbee;
+}
+
+:root[data-theme="amber"] {
+  /* NousResearch Hermes Amber Terminal */
+  --theme-primary: #ffb000;
+  --theme-bg: #160f00;
+  --theme-card: rgba(22, 15, 0, 0.8);
+  --theme-text: #ffeccf;
+}
+
+:root[data-theme="sonic"] {
+  /* Bootleg Sonic Blue */
+  --theme-primary: #0094ff;
+  --theme-bg: #000e26;
+  --theme-card: rgba(0, 14, 38, 0.8);
+  --theme-text: #ccf0ff;
+}
+
+:root[data-theme="cyberpunk"] {
+  /* Hot Magenta Cyberpunk */
+  --theme-primary: #ff00ff;
+  --theme-bg: #140014;
+  --theme-card: rgba(20, 0, 20, 0.8);
+  --theme-text: #ffccff;
+}
+
+:root[data-theme="sakura"] {
+  /* Cherry Blossom Pink */
+  --theme-primary: #ffb7c5;
+  --theme-bg: #1f0b11;
+  --theme-card: rgba(31, 11, 17, 0.8);
+  --theme-text: #ffeef2;
+}
+
+:root[data-theme="obsidian"] {
+  /* Blood Red Obsidian */
+  --theme-primary: #ff0033;
+  --theme-bg: #1a0005;
+  --theme-card: rgba(26, 0, 5, 0.8);
+  --theme-text: #fadce1;
+}
+
+:root[data-theme="ghost"] {
+  /* Null Void Monochrome */
+  --theme-primary: #ffffff;
+  --theme-bg: #0a0a0a;
+  --theme-card: rgba(10, 10, 10, 0.8);
+  --theme-text: #a0a0a0;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--theme-bg);
+  background-image: radial-gradient(circle at 50% 0%, var(--theme-card), var(--theme-bg));
+  color: var(--theme-text);
+  min-height: 100vh;
+  transition: all 0.5s ease;
+}
+
+/* Custom Web3 Scrollbar */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: var(--dark-bg); }
+::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--neon-green); }

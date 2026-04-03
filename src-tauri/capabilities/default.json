@@ -1,0 +1,64 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "enables the default permissions",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+
+    "dialog:default",
+    "fs:default",
+    {
+      "identifier": "fs:allow-copy-file",
+      "allow": [{ "path": "$HOME/Documents/Meme Merchants/**" }, { "path": "$TEMP/**" }, { "path": "$APPLOCALDATA/**" }]
+    },
+    {
+      "identifier": "fs:allow-write-file",
+      "allow": [{ "path": "$HOME/Documents/Meme Merchants/**" }, { "path": "$TEMP/**" }, { "path": "$APPLOCALDATA/**" }]
+    },
+    {
+      "identifier": "fs:allow-read-text-file",
+      "allow": [
+        { "path": "$HOME/Documents/Meme Merchants/**/*.md" },
+        { "path": "$HOME/Documents/Meme Merchants/**/*.txt" },
+        { "path": "$HOME/Documents/Meme Merchants/**/*.json" },
+        { "path": "$APPLOCALDATA/**/*.json" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-write-text-file",
+      "allow": [
+        { "path": "$HOME/Documents/Meme Merchants/**/*.md" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-mkdir",
+      "allow": [{ "path": "$TEMP/**" }, { "path": "$APPLOCALDATA/**" }]
+    },
+    {
+      "identifier": "fs:allow-read-dir",
+      "allow": [{ "path": "$TEMP/**" }, { "path": "$APPLOCALDATA/**" }]
+    },
+    {
+      "identifier": "fs:allow-read-file",
+      "allow": [{ "path": "$TEMP/**" }, { "path": "$APPLOCALDATA/**" }, { "path": "$HOME/Documents/Meme Merchants/**" }]
+    },
+    "process:default",
+    "process:allow-restart",
+    "process:allow-exit",
+    "store:default",
+    "updater:default",
+    "stronghold:default",
+    "stronghold:allow-initialize",
+    "opener:default",
+    "opener:allow-open-url",
+    "fs:allow-appdata-read-recursive",
+    "fs:allow-appdata-write-recursive",
+    {
+      "identifier": "fs:allow-exists",
+      "allow": [{ "path": "$APPDATA/**" }, { "path": "$APPLOCALDATA/**" }]
+    }
+  ]
+}
