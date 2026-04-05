@@ -30,7 +30,14 @@
     {
       "identifier": "fs:allow-write-text-file",
       "allow": [
-        { "path": "$HOME/Documents/Meme Merchants/**/*.md" }
+        { "path": "$HOME/Documents/Meme Merchants/**/*.md" },
+        { "path": "$HOME/Documents/Meme Merchants/**/*.py" },
+        { "path": "$HOME/Documents/Meme Merchants/**/*.js" },
+        { "path": "$HOME/Documents/Meme Merchants/**/*.ts" },
+        { "path": "$HOME/Documents/Meme Merchants/**/*.sh" },
+        { "path": "$HOME/Documents/Meme Merchants/**/*.json" },
+        { "path": "$HOME/Documents/Meme Merchants/**/*.txt" },
+        { "path": "$HOME/Documents/Meme Merchants/**/*.csv" }
       ]
     },
     {
