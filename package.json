@@ -1,8 +1,8 @@
 {
   "name": "the-undesirables-desktop",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
-  "description": "The Undesirables AI Desktop Ecosystem powered by Tauri and FastMCP",
+  "description": "The Undesirables Desktop Application",
   "scripts": {
     "dev": "next dev -p 3001",
     "build": "next build",

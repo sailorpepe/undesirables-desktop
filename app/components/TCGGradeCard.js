@@ -79,14 +79,22 @@ function runSimulation({ startPrice, days, mu, sigma, model, risk, numSims = 200
   for (let day = 0; day <= days; day++) {
     const pricesAtDay = paths.map(p => p[day]).sort((a, b) => a - b);
     const len = pricesAtDay.length;
-    result.push({
+    let dayData = {
       day: `D${day}`,
       p5:   pricesAtDay[Math.floor(len * 0.05)],
       p25:  pricesAtDay[Math.floor(len * 0.25)],
       mean: pricesAtDay.reduce((a, b) => a + b, 0) / len,
       p75:  pricesAtDay[Math.floor(len * 0.75)],
       p95:  pricesAtDay[Math.floor(len * 0.95)],
-    });
+    };
+    
+    // Attach every single simulation path for "Multiverse" rendering
+    // We limit to first 100 paths for rendering performance
+    for (let i = 0; i < Math.min(numSims, 100); i++) {
+        dayData[`path_${i}`] = paths[i][day];
+    }
+    
+    result.push(dayData);
   }
 
   // Win probability (final > start)
@@ -382,16 +390,15 @@ export default function TCGGradeCard({ content, cardImages = [] }) {
            </div>
 
            {/* Chart */}
-           <div className="w-full h-[140px] bg-black/40 rounded-xl border border-white/5 p-2 pb-0 pt-3">
+           <div className="w-full h-[140px] bg-black/40 rounded-xl border border-white/5 p-2 pb-0 pt-3 overflow-hidden relative">
+              
+              {/* Glowing overlay filter for the lines */}
+              <div className="absolute inset-0 pointer-events-none mix-blend-screen opacity-50 z-10"
+                   style={{ boxShadow: `inset 0 0 20px ${activeModel.color}40` }}></div>
+
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={simData || []}>
-                  <defs>
-                    <linearGradient id="colorBand" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={activeModel.color} stopOpacity={0.15}/>
-                      <stop offset="95%" stopColor={activeModel.color} stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} opacity={0.5} />
+                <LineChart data={simData || []}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} opacity={0.3} />
                   <XAxis dataKey="day" hide={true} />
                   <YAxis domain={['auto', 'auto']} tick={{fontSize: 9, fill: '#71717a'}} width={35} axisLine={false} tickLine={false} tickFormatter={(val) => `$${val.toFixed(0)}`} />
                   <Tooltip 
@@ -401,18 +408,35 @@ export default function TCGGradeCard({ content, cardImages = [] }) {
                       `$${Number(value).toFixed(2)}`, 
                       name === 'mean' ? 'Mean Expected' : 
                       name === 'p95' ? 'Bull Case (95%)' : 
-                      name === 'p75' ? 'Optimistic (75%)' : 
-                      name === 'p25' ? 'Pessimistic (25%)' : 
-                      name === 'p5' ? 'Bear Case (5%)' : name
+                      name === 'p5' ? 'Bear Case (5%)' : 
+                      name.startsWith('path_') ? 'Simulated Path' : name
                     ]}
-                    labelFormatter={(label) => `Simulated ${label}`}
+                    labelFormatter={(label) => `Day ${label.replace('D', '')}`}
+                    filterNull={false}
                   />
-                  <Area type="monotone" dataKey="p95" stroke="none" fill="url(#colorBand)" fillOpacity={0.4} isAnimationActive={false} />
-                  <Area type="monotone" dataKey="p75" stroke="none" fill="url(#colorBand)" fillOpacity={0.3} isAnimationActive={false} />
-                  <Line type="monotone" dataKey="p5" stroke="#3f3f46" strokeWidth={1} strokeDasharray="2 2" dot={false} isAnimationActive={false} />
-                  <Line type="monotone" dataKey="p95" stroke="#3f3f46" strokeWidth={1} strokeDasharray="2 2" dot={false} isAnimationActive={false} />
-                  <Line type="monotone" dataKey="mean" stroke={activeModel.color} strokeWidth={2} dot={false} isAnimationActive={false} />
-                </AreaChart>
+                  
+                  {/* MULTIVERSE LINES: Draw 100 individual paths faintly */}
+                  {Array.from({ length: 100 }).map((_, i) => (
+                    <Line 
+                      key={`path_${i}`} 
+                      type="monotone" 
+                      dataKey={`path_${i}`} 
+                      stroke={activeModel.color} 
+                      strokeOpacity={0.06} 
+                      strokeWidth={1} 
+                      dot={false} 
+                      isAnimationActive={false} 
+                      activeDot={false}
+                    />
+                  ))}
+
+                  {/* Draw the statistical boundaries on top */}
+                  <Line type="monotone" dataKey="p5" stroke="#3f3f46" strokeWidth={1} strokeDasharray="2 2" dot={false} isAnimationActive={false} activeDot={false} />
+                  <Line type="monotone" dataKey="p95" stroke="#3f3f46" strokeWidth={1} strokeDasharray="2 2" dot={false} isAnimationActive={false} activeDot={false} />
+                  
+                  {/* Draw the Mean Expectation as a solid white line through the chaos */}
+                  <Line type="monotone" dataKey="mean" stroke="#ffffff" strokeOpacity={0.9} strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                </LineChart>
               </ResponsiveContainer>
            </div>
            
@@ -420,10 +444,10 @@ export default function TCGGradeCard({ content, cardImages = [] }) {
            <div className="flex justify-between items-center mt-2 px-1">
              <div className="text-[9px] text-zinc-500 flex gap-3">
                <span className="flex items-center gap-1">
-                 <span className="w-1.5 h-1.5 rounded-full shadow-[0_0_5px]" style={{ backgroundColor: activeModel.color }}></span> Mean
+                 <span className="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_5px_rgba(255,255,255,0.5)]"></span> Expected Price
                </span>
                <span className="flex items-center gap-1">
-                 <span className="w-1.5 h-1.5 rounded-full border border-zinc-500 border-dashed"></span> 95% CI
+                 <span className="w-1.5 h-1.5 rounded-full border border-zinc-500 border-dashed"></span> Confidence Frame
                </span>
              </div>
              <div className="flex gap-3 text-[9px]">

@@ -4,6 +4,7 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import { Terminal, ShieldAlert, Cpu, Database, Send, ChevronRight, BookText, Image as ImageIcon, Briefcase, Users, Sparkles, Layers, Ticket, ShieldCheck, Globe, Video, RotateCcw, Paperclip, MessageSquare, Mic, Volume2, VolumeX, X } from 'lucide-react';
 import VideoTimeline from './VideoTimeline';
 import MusicStudio from './MusicStudio';
+import CodeWorkshop from './CodeWorkshop';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import TCGGradeCard from './TCGGradeCard';
@@ -44,7 +45,40 @@ const NativeImage = ({ path, AssetHelper }) => {
 
 const MAX_LOG_LINES = 500;
 const OLLAMA_URL = 'http://localhost:11434/api/chat';
-const MODEL = 'qwen3:8b';
+const DEFAULT_MODEL = 'qwen3:8b';
+
+const BRAIN_MODES = {
+  nexus: {
+    id: 'nexus', label: 'NEXUS', icon: '💬', color: '#39ff14', model: 'qwen3:8b',
+    speed: 'Instant', size: '8B',
+    description: 'Fast chat & personality',
+    bestFor: 'Quick questions, conversation, brainstorming, raffles, soul translation',
+    tools: ['raffle_management', 'soul_translator', 'council', 'collab_outreach'],
+    systemInjection: '',
+  },
+  forge: {
+    id: 'forge', label: 'FORGE', icon: '💻', color: '#00f0ff', model: 'qwen3.5:35b-a3b-coding-nvfp4',
+    speed: '~30s warmup', size: '35B',
+    description: 'Code & script specialist',
+    bestFor: 'Video render scripts, music gen, coding help, automation, beat sync',
+    tools: ['video_production', 'music_generator', 'graphics_studio', 'invoice_generator', 'image_to_3d', 'code_workshop'],
+    systemInjection: '\n\n[BRAIN MODE: FORGE]\nYou are a professional software engineer. Write production-quality, well-documented code. Always specify the language. Show complete modified versions, not fragments.',
+  },
+  oracle: {
+    id: 'oracle', label: 'ORACLE', icon: '🔮', color: '#b43cff', model: 'gemma4:26b',
+    speed: '~45s warmup', size: '26B MoE',
+    description: 'Deep analysis & vision',
+    bestFor: 'Card grading, receipt scanning, PFP extraction, market analysis, image analysis',
+    tools: ['tcg_grader', 'receipt_scanner', 'pfp_extractor', 'market_intelligence', 'business_pilot'],
+    systemInjection: '\n\n[BRAIN MODE: ORACLE]\nYou are an expert analyst. Be thorough, cite evidence, think step by step. When analyzing images, describe exactly what you see.',
+  },
+};
+
+// Map each tool to its recommended brain for auto-suggestions
+const TOOL_BRAIN_MAP = {};
+Object.values(BRAIN_MODES).forEach(mode => {
+  (mode.tools || []).forEach(tool => { TOOL_BRAIN_MAP[tool] = mode.id; });
+});
 
 export default function ChatInterface({ workspacePath, bootToken, onExit, isRestricted }) {
   const jitVaultRef = useRef({ bankInfo: '', logoTag: '' });
@@ -54,6 +88,15 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
   const [soulPrompt, setSoulPrompt] = useState('');
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
+  const [selectedModel, setSelectedModel] = useState(
+    typeof window !== 'undefined' ? (localStorage.getItem('undesirables_model') || DEFAULT_MODEL) : DEFAULT_MODEL
+  );
+  const [availableModels, setAvailableModels] = useState([]);
+  const [brainMode, setBrainMode] = useState(
+    typeof window !== 'undefined' ? (localStorage.getItem('undesirables_brain') || 'nexus') : 'nexus'
+  );
+  const [brainLoading, setBrainLoading] = useState(false);
+  const [pastedImage, setPastedImage] = useState(null);
   const [chatHistory, setChatHistory] = useState([]);
   const [dynamicConfig, setDynamicConfig] = useState({ name: 'Agent', emojis: '', archetype: 'Unknown', syntaxRules: '', temperature: 0.7 });
   const [psychoTraits, setPsychoTraits] = useState({
@@ -549,6 +592,20 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
     import('@tauri-apps/api/core').then(core => setAssetHelper(() => core.convertFileSrc)).catch(() => {});
   }, []);
 
+  // Fetch available Ollama models
+  useEffect(() => {
+    const fetchModels = async () => {
+      try {
+        const res = await fetch('http://localhost:11434/api/tags');
+        const data = await res.json();
+        if (data?.models) setAvailableModels(data.models.map(m => m.name));
+      } catch {}
+    };
+    fetchModels();
+    const iv = setInterval(fetchModels, 30000);
+    return () => clearInterval(iv);
+  }, []);
+
   // Load ALL consciousness files from workspace on mount
   useEffect(() => {
     if (!activeWorkspace) return;
@@ -958,7 +1015,8 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
     { id: 'invoice_generator', icon: '🧾', name: 'AI Invoice Generator', detail: 'Print Branded PDFs' },
     { id: 'receipt_scanner', icon: '📸', name: 'Receipt Scanner', detail: 'OCR Extract to CRM' },
     { id: 'soul_translator', icon: '🧠', name: 'Soul Translator', detail: 'Psychometric Neural Net' },
-    { id: 'business_pilot', icon: '👔', name: 'Business Pilot', detail: 'Automated Phoning & Ops' }
+    { id: 'business_pilot', icon: '👔', name: 'Business Pilot', detail: 'Automated Phoning & Ops' },
+    { id: 'code_workshop', icon: '🛠️', name: 'Code Workshop', detail: 'FORGE Scripts & Automation' },
   ];
 
   // Nexus Token ID Quick-Load Handler (extracted from JSX to avoid Turbopack regex parsing issues)
@@ -1155,6 +1213,15 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
       consciousnessPrompt += systemPromptData + '\n\n';
     }
     consciousnessPrompt += soulPrompt.replace(/- Occasionally use 🐸/g, '').replace(/Occasionally use 🐸/g, '');
+    // Inject brain mode system prompt
+    const activeBrain = BRAIN_MODES[brainMode];
+    if (activeBrain?.systemInjection) {
+      consciousnessPrompt += activeBrain.systemInjection;
+    }
+    // Trim consciousness for small models to prevent context overflow
+    if (brainMode === 'nexus' && consciousnessPrompt.length > 4000) {
+      consciousnessPrompt = consciousnessPrompt.substring(0, 4000) + '\n[consciousness truncated for speed]';
+    }
     if (loadedFiles.agents.loaded && agentsData) {
       consciousnessPrompt += '\n\n--- OPERATING MANUAL ---\n' + agentsData;
     }
@@ -1259,21 +1326,25 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
       // Call MCP detect_emotion tool to classify user's emotional state
       // and compute adaptive sampling parameter adjustments
       let emotionDeltas = { temperature_delta: 0, top_p_delta: 0, top_k_delta: 0, repeat_penalty_delta: 0, dominant_emotion: 'neutral' };
+      const emotionTimeout = (ms) => new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms));
       try {
         const { invoke } = await import('@tauri-apps/api/core');
         const traits = parseSoulTraits();
-        const emotionRes = await invoke('execute_mcp_tool', {
-          serverName: 'undesirables-mcp-server',
-          toolName: 'detect_emotion',
-          args: {
-            text: userMessage,
-            soul_openness: traits.openness || 0,
-            soul_conscientiousness: traits.conscientiousness || 0,
-            soul_extraversion: traits.extraversion || 0,
-            soul_agreeableness: traits.agreeableness || 0,
-            soul_neuroticism: traits.neuroticism || 0,
-          }
-        });
+        const emotionRes = await Promise.race([
+          invoke('execute_mcp_tool', {
+            serverName: 'undesirables-mcp-server',
+            toolName: 'detect_emotion',
+            args: {
+              text: userMessage,
+              soul_openness: traits.openness || 0,
+              soul_conscientiousness: traits.conscientiousness || 0,
+              soul_extraversion: traits.extraversion || 0,
+              soul_agreeableness: traits.agreeableness || 0,
+              soul_neuroticism: traits.neuroticism || 0,
+            }
+          }),
+          emotionTimeout(3000),
+        ]);
         const parsed = typeof emotionRes === 'string' ? JSON.parse(emotionRes) : emotionRes;
         const inner = parsed.result ? (typeof parsed.result === 'string' ? JSON.parse(parsed.result) : parsed.result) : parsed;
         if (inner.adjustments) emotionDeltas = inner.adjustments;
@@ -1294,10 +1365,11 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
       }
 
       const requestPayload = {
-        model: (isVisionTask || (ollamaMessages.length > 0 && ollamaMessages[ollamaMessages.length-1].images)) ? 'qwen2.5vl:7b' : MODEL,
+        model: (isVisionTask || (ollamaMessages.length > 0 && ollamaMessages[ollamaMessages.length-1].images)) ? 'qwen2.5vl:7b' : selectedModel,
         stream: !isToolRequest,
         messages: ollamaMessages,
         options: {
+          num_ctx: brainMode === 'nexus' ? 8192 : 16384,
           temperature: parseFloat(Math.max(0.1, Math.min(2.0, soulParams.temperature + emotionDeltas.temperature_delta)).toFixed(2)),
           top_p: parseFloat(Math.max(0.1, Math.min(1.0, soulParams.top_p + emotionDeltas.top_p_delta)).toFixed(2)),
           top_k: Math.max(5, Math.min(100, soulParams.top_k + emotionDeltas.top_k_delta)),
@@ -2512,6 +2584,11 @@ Output ONLY the raw HTML string inside a \`\`\`html code block. Do not add any c
   };
 
   const handleSkillClick = (skillId) => {
+    // Auto-suggest brain mode for this tool
+    const recommendedBrain = TOOL_BRAIN_MAP[skillId];
+    const brainSuggestion = (recommendedBrain && recommendedBrain !== brainMode)
+      ? BRAIN_MODES[recommendedBrain]
+      : null;
     if (skillId === 'graphics_studio') {
       setActiveMode('graphics_studio');
       const bannerMenu = `## 🎨 GRAPHICS STUDIO — Memes & Banners Ready\n\n> Create viral memes, image macros, or banners for Scatter.art, X, and OpenSea.\n\n### How It Works\n\n1. **Drag & drop your PNG/JPG assets** into the chat window\n2. Tell me the **platform** or **meme format**.\n3. Describe the **text or style** (neon glow, glitch, impact font, etc.)\n4. I'll generate the graphic using your images as references\n\n### Quick Instructions\n- For a banner: "Make an OpenSea banner with neon text."\n- For a meme: "Put impact text saying 'WHEN THE BUG IS A FEATURE'."`;
@@ -2646,9 +2723,32 @@ Output ONLY the raw HTML string inside a \`\`\`html code block. Do not add any c
         { role: 'agent', content: threeDMenu }
       ]);
       setChatHistory(prev => [...prev, { role: 'assistant', content: threeDMenu }]);
+    } else if (skillId === 'code_workshop') {
+      setActiveMode('code_workshop');
+      // Auto-switch to FORGE brain
+      if (brainMode !== 'forge') {
+        setBrainMode('forge');
+        setSelectedModel(BRAIN_MODES.forge.model);
+        localStorage.setItem('undesirables_model', BRAIN_MODES.forge.model);
+        localStorage.setItem('undesirables_brain', 'forge');
+      }
+      setLogs(prev => [...prev,
+        { role: 'system', content: `[SYS] ${BRAIN_MODES.forge.icon} FORGE CODE WORKSHOP ENGAGED (${BRAIN_MODES.forge.model})` },
+        { role: 'agent', content: '', type: 'code_workshop' },
+      ]);
+      setChatHistory(prev => [...prev, { role: 'assistant', content: '[Code Workshop opened]' }]);
     } else {
       setActiveMode(null);
       sendToOllama(`Execute skill: ${skillId}. Give me a brief result.`);
+    }
+    // Inject brain recommendation AFTER tool initializes (delayed so it appears last)
+    if (brainSuggestion) {
+      setTimeout(() => {
+        setLogs(prev => [...prev, {
+          role: 'agent',
+          content: `### ${brainSuggestion.icon} Tip: Switch to ${brainSuggestion.label}\n\nThis tool works best with **${brainSuggestion.label}** (${brainSuggestion.model}). Click the **${brainSuggestion.label}** pill above the chat input to switch.\n\n> ${brainSuggestion.bestFor}`,
+        }]);
+      }, 100);
     }
   };
 
@@ -3059,7 +3159,7 @@ Output ONLY the raw HTML string inside a \`\`\`html code block. Do not add any c
                 <span className="text-sm">📷</span> OPTICAL CAPTURE
               </button>
               <div className="text-[10px] font-mono text-[#e0faec]/30 flex items-center justify-between pt-1 px-1">
-                <span>OLLAMA_DIRECT</span>
+                <span>OLLAMA_DIRECT — {selectedModel}</span>
                 <ShieldAlert size={12} className="text-neon-primary" />
               </div>
             </div>
@@ -3555,6 +3655,21 @@ Output ONLY the raw HTML string inside a \`\`\`html code block. Do not add any c
                       <MusicStudio onGenerated={(track) => {
                         handleSend(`🎵 Generated: ${track.filename} (${track.duration}s, seed ${track.seed})\nPath: ${track.path}\nGenre: ${track.genre}`);
                       }} />
+                    </div>
+                  )}
+                  {msg.type === 'code_workshop' && (
+                    <div className="mt-4 border border-[#00f0ff]/30 rounded-lg p-2 bg-[#000000] shadow-[inset_0_0_20px_rgba(0,240,255,0.05)]">
+                      <CodeWorkshop
+                        brainMode={brainMode}
+                        selectedModel={selectedModel}
+                        onSubmit={(action) => {
+                          if (action.type === 'save') {
+                            setLogs(prev => [...prev, { role: 'system', content: `[SYS] Script saved: ${action.filename}` }]);
+                          } else if (action.type === 'chat') {
+                            handleSend(action.prompt);
+                          }
+                        }}
+                      />
                     </div>
                   )}
                 </div>
@@ -4465,22 +4580,71 @@ Output ONLY the raw HTML string inside a \`\`\`html code block. Do not add any c
           </div>
         )}
 
-        {/* Console Input Bar */}
+        {/* Console Input Bar + Brain Toggle */}
         <div className="p-3 bg-[#0a140d] border-t border-neon-primary/20 relative z-30 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
-          <div className="flex justify-between items-end mb-1 px-1">
-             <div className="text-[10px] text-neon-primary/40 font-mono tracking-widest uppercase pointer-events-none">Console Input</div>
-             <button 
-                onClick={() => {
-                   if (window.confirm("Purge local chat history memory?")) {
-                      setChatHistory([]);
-                      setLogs([{ role: 'system', content: '[SYS] Neural pathways purged. Rebooting UI...' }]);
-                   }
-                }}
-                className="text-[9px] text-zinc-500 hover:text-red-500 hover:bg-red-500/10 px-2 py-0.5 rounded transition-all font-mono uppercase tracking-widest border border-transparent hover:border-red-500/30"
-             >
-                [ Clear Chat History ]
-             </button>
+          {/* Brain Mode Toggle */}
+          <div className="flex items-center gap-1.5 mb-2">
+            {Object.values(BRAIN_MODES).map(mode => {
+              const isActive = brainMode === mode.id;
+              return (
+                <div key={mode.id} className="relative group/brain">
+                  <button
+                    onClick={() => {
+                      if (brainMode === mode.id) return;
+                      setBrainMode(mode.id);
+                      setSelectedModel(mode.model);
+                      localStorage.setItem('undesirables_model', mode.model);
+                      localStorage.setItem('undesirables_brain', mode.id);
+                      setLogs(prev => [...prev, { role: 'system', content: `[SYS] Brain: ${mode.icon} ${mode.label} (${mode.model})` }]);
+                      if (mode.model !== 'qwen3:8b') {
+                        setBrainLoading(true);
+                        fetch('http://localhost:11434/api/generate', {
+                          method: 'POST', body: JSON.stringify({ model: mode.model, prompt: 'ping', stream: false }),
+                        }).then(() => setBrainLoading(false)).catch(() => setBrainLoading(false));
+                        setTimeout(() => setBrainLoading(false), 45000);
+                      }
+                    }}
+                    className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[10px] font-mono font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer border ${isActive ? '' : 'border-white/10 hover:border-white/25 bg-white/[0.02] hover:bg-white/5 text-[#e0faec80]'}`}
+                    style={isActive ? { borderColor: mode.color, backgroundColor: mode.color + '15', boxShadow: '0 0 12px ' + mode.color + '40', color: mode.color } : undefined}
+                  >
+                    {brainLoading && isActive ? <span className="animate-spin text-xs">{String.fromCodePoint(0x23F3)}</span> : <span className="text-xs">{mode.icon}</span>}
+                    {mode.label}
+                    {isActive && <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: mode.color }} />}
+                  </button>
+                  {/* Hover Tooltip */}
+                  <div className="absolute bottom-full left-0 mb-2 w-64 p-3 rounded-lg border bg-[#0a0a0a]/95 backdrop-blur-lg opacity-0 pointer-events-none group-hover/brain:opacity-100 group-hover/brain:pointer-events-auto transition-all duration-200 z-50 shadow-xl" style={{ borderColor: mode.color + '40' }}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-lg">{mode.icon}</span>
+                      <div>
+                        <div className="text-xs font-bold font-mono" style={{ color: mode.color }}>{mode.label}</div>
+                        <div className="text-[9px] text-white/40 font-mono">{mode.size} {String.fromCodePoint(0x2022)} {mode.speed}</div>
+                      </div>
+                    </div>
+                    <div className="text-[10px] text-white/70 mb-2 leading-relaxed">{mode.bestFor}</div>
+                    <div className="flex flex-wrap gap-1">
+                      {(mode.tools || []).slice(0, 4).map(t => (
+                        <span key={t} className="text-[8px] px-1.5 py-0.5 rounded font-mono border" style={{ borderColor: mode.color + '30', color: mode.color + '90', backgroundColor: mode.color + '08' }}>{t.replace(/_/g, ' ')}</span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            <div className="flex-1" />
+            <button onClick={() => { if (window.confirm('Purge chat history?')) { setChatHistory([]); setLogs([{ role: 'system', content: '[SYS] Purged.' }]); } }}
+              className="text-[9px] text-zinc-500 hover:text-red-500 hover:bg-red-500/10 px-2 py-0.5 rounded transition-all font-mono uppercase tracking-widest border border-transparent hover:border-red-500/30"
+            >[ Clear ]</button>
           </div>
+          {pastedImage && (
+            <div className="mb-2 flex items-center gap-2 bg-black/60 border border-neon-primary/20 rounded-lg p-2">
+              <img src={pastedImage} alt="Screenshot" className="h-16 w-auto rounded border border-white/10" />
+              <div className="flex-1">
+                <div className="text-[10px] text-neon-primary/60 font-mono">{String.fromCodePoint(0x1F4F8)} Screenshot attached</div>
+                <div className="text-[9px] text-white/30 font-mono">Will be sent with your next message</div>
+              </div>
+              <button onClick={() => { setPastedImage(null); window.__pastedScreenshot = null; }} className="text-red-400/60 hover:text-red-400 p-1"><X size={14} /></button>
+            </div>
+          )}
           <div className="relative flex items-center group">
             <span className="absolute left-3 top-3.5 text-neon-primary animate-pulse pointer-events-none opacity-70 group-focus-within:opacity-100 font-mono">$&gt;</span>
             <textarea 
@@ -4493,7 +4657,25 @@ Output ONLY the raw HTML string inside a \`\`\`html code block. Do not add any c
                     if(input.trim()) handleSend();
                  }
               }}
-              placeholder={isDictating ? "Listening via hardware mic..." : (isStreaming ? "Neural network locked..." : "Transmit protocol...")}
+              onPaste={(e) => {
+                 const items = e.clipboardData?.items;
+                 if (!items) return;
+                 for (const item of items) {
+                   if (item.type.startsWith('image/')) {
+                     e.preventDefault();
+                     const blob = item.getAsFile();
+                     const reader = new FileReader();
+                     reader.onload = (ev) => {
+                       setPastedImage(ev.target.result);
+                       window.__pastedScreenshot = ev.target.result;
+                       setLogs(prev => [...prev, { role: 'system', content: String.fromCodePoint(0x1F4F8) + ' Screenshot pasted. Type your question and hit Enter.' }]);
+                     };
+                     reader.readAsDataURL(blob);
+                     break;
+                   }
+                 }
+              }}
+              placeholder={isDictating ? "Listening via hardware mic..." : (isStreaming ? "Neural network locked..." : `${BRAIN_MODES[brainMode]?.icon || ''} ${BRAIN_MODES[brainMode]?.label || 'NEXUS'} \u2014 Transmit protocol...`)}
               disabled={isStreaming}
               className={`w-full bg-black/60 border border-neon-primary/40 focus:border-neon-primary focus:bg-neon-bg focus:shadow-[0_0_20px_rgba(57,255,20,0.2)] rounded-lg py-3 pl-9 pr-36 text-[#e0faec] text-sm focus:outline-none transition-all disabled:opacity-50 tracking-wide resize-none custom-scrollbar ${isDictating ? 'animate-pulse shadow-[0_0_30px_rgba(255,0,0,0.3)] border-red-500/50' : ''}`}
             />
