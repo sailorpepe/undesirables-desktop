@@ -8,7 +8,7 @@ stages:
 
 variables:
   NODE_VERSION: "20"
-  RUST_VERSION: "1.85.0"
+  RUST_VERSION: "stable"
 
 # ============================================================
 # Linux build using mcp-dist Nuitka C-binaries
@@ -38,7 +38,7 @@ build:linux:
   script:
     # 1. Setup Rust
     - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o rustup.sh
-    - sh rustup.sh -y --default-toolchain $RUST_VERSION
+    - sh rustup.sh -y --default-toolchain stable
     - source $HOME/.cargo/env
 
     # 2. Clone MCP server and compile proprietary modules to native C-binaries
