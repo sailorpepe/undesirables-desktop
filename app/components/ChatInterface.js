@@ -1179,6 +1179,26 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
     
     const newHistory = [...chatHistory, { role: 'user', content: sanitizedMessage }];
     setChatHistory(newHistory);
+
+    // === LIVE DATA INJECTION: Weather Detection ===
+    // If user asks about weather, fetch real-time data from wttr.in (free, no API key)
+    const weatherMatch = sanitizedMessage.match(/weather\s+(?:in\s+|for\s+|at\s+)?(.+?)(?:\?|$|\.)/i) 
+                      || sanitizedMessage.match(/(?:what'?s?\s+the\s+weather|how'?s?\s+the\s+weather)\s*(?:in\s+|for\s+|at\s+)?(.+?)(?:\?|$|\.)/i)
+                      || sanitizedMessage.match(/(?:temperature|forecast)\s+(?:in\s+|for\s+|at\s+)?(.+?)(?:\?|$|\.)/i);
+    if (weatherMatch && weatherMatch[1]) {
+      const city = weatherMatch[1].trim();
+      try {
+        const weatherResp = await fetch(`https://wttr.in/${encodeURIComponent(city)}?format=j1`);
+        if (weatherResp.ok) {
+          const wd = await weatherResp.json();
+          const current = wd.current_condition?.[0] || {};
+          const weatherContext = `\n\n[LIVE DATA — Weather for ${city}]\nTemperature: ${current.temp_F}°F / ${current.temp_C}°C\nFeels Like: ${current.FeelsLikeF}°F / ${current.FeelsLikeC}°C\nCondition: ${current.weatherDesc?.[0]?.value || 'Unknown'}\nHumidity: ${current.humidity}%\nWind: ${current.windspeedMph} mph ${current.winddir16Point}\nVisibility: ${current.visibility} miles\n[Use this real data to answer the user's weather question.]\n`;
+          sanitizedMessage = sanitizedMessage + weatherContext;
+        }
+      } catch (e) {
+        console.warn('[WEATHER] Failed to fetch weather data:', e);
+      }
+    }
     
     // ONLY print standard user messages to the UI. Hide the physical triggers.
     if (!isInternalEvent) {
