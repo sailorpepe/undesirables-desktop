@@ -1360,45 +1360,44 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
       const repetitionBoost = msgCount > 10 ? Math.min((msgCount - 10) * 0.01, 0.15) : 0;
 
       // === Phase 2: Emotion Detection ===
-      // Call MCP detect_emotion tool to classify user's emotional state
-      // and compute adaptive sampling parameter adjustments
+      // Skip for small models — the Python MCP call adds ~3s latency and competes for RAM
       let emotionDeltas = { temperature_delta: 0, top_p_delta: 0, top_k_delta: 0, repeat_penalty_delta: 0, dominant_emotion: 'neutral' };
-      const emotionTimeout = (ms) => new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms));
-      try {
-        const { invoke } = await import('@tauri-apps/api/core');
-        const traits = parseSoulTraits();
-        const emotionRes = await Promise.race([
-          invoke('execute_mcp_tool', {
-            serverName: 'undesirables-mcp-server',
-            toolName: 'detect_emotion',
-            args: {
-              text: userMessage,
-              soul_openness: traits.openness || 0,
-              soul_conscientiousness: traits.conscientiousness || 0,
-              soul_extraversion: traits.extraversion || 0,
-              soul_agreeableness: traits.agreeableness || 0,
-              soul_neuroticism: traits.neuroticism || 0,
-            }
-          }),
-          emotionTimeout(3000),
-        ]);
-        const parsed = typeof emotionRes === 'string' ? JSON.parse(emotionRes) : emotionRes;
-        const inner = parsed.result ? (typeof parsed.result === 'string' ? JSON.parse(parsed.result) : parsed.result) : parsed;
-        if (inner.adjustments) emotionDeltas = inner.adjustments;
-        if (inner.dominant && inner.dominant !== 'neutral') {
-          setLogs(prev => {
-            const updated = [...prev];
-            // Insert a subtle emotion indicator before the agent response
-            const emotionEmoji = { anger: '😤', joy: '😊', sadness: '😢', fear: '😰', surprise: '😮', curiosity: '🤔', love: '❤️', amusement: '😄', excitement: '⚡', disgust: '🤢', disappointment: '😞', confusion: '❓', gratitude: '🙏', admiration: '✨', nervousness: '😬' };
-            const emoji = emotionEmoji[inner.dominant] || '🎭';
-            updated.splice(agentMsgIndex.current, 0, { role: 'system', content: `[EMOTION] ${emoji} ${inner.dominant} (${(inner.emotions?.[0]?.score * 100 || 0).toFixed(0)}%)` });
-            agentMsgIndex.current += 1;
-            return updated;
-          });
+      if (!isSmallModel) {
+        const emotionTimeout = (ms) => new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms));
+        try {
+          const { invoke } = await import('@tauri-apps/api/core');
+          const traits = parseSoulTraits();
+          const emotionRes = await Promise.race([
+            invoke('execute_mcp_tool', {
+              serverName: 'undesirables-mcp-server',
+              toolName: 'detect_emotion',
+              args: {
+                text: userMessage,
+                soul_openness: traits.openness || 0,
+                soul_conscientiousness: traits.conscientiousness || 0,
+                soul_extraversion: traits.extraversion || 0,
+                soul_agreeableness: traits.agreeableness || 0,
+                soul_neuroticism: traits.neuroticism || 0,
+              }
+            }),
+            emotionTimeout(3000),
+          ]);
+          const parsed = typeof emotionRes === 'string' ? JSON.parse(emotionRes) : emotionRes;
+          const inner = parsed.result ? (typeof parsed.result === 'string' ? JSON.parse(parsed.result) : parsed.result) : parsed;
+          if (inner.adjustments) emotionDeltas = inner.adjustments;
+          if (inner.dominant && inner.dominant !== 'neutral') {
+            setLogs(prev => {
+              const updated = [...prev];
+              const emotionEmoji = { anger: '😤', joy: '😊', sadness: '😢', fear: '😰', surprise: '😮', curiosity: '🤔', love: '❤️', amusement: '😄', excitement: '⚡', disgust: '🤢', disappointment: '😞', confusion: '❓', gratitude: '🙏', admiration: '✨', nervousness: '😬' };
+              const emoji = emotionEmoji[inner.dominant] || '🎭';
+              updated.splice(agentMsgIndex.current, 0, { role: 'system', content: `[EMOTION] ${emoji} ${inner.dominant} (${(inner.emotions?.[0]?.score * 100 || 0).toFixed(0)}%)` });
+              agentMsgIndex.current += 1;
+              return updated;
+            });
+          }
+        } catch (emotionErr) {
+          console.debug('[EMOTION] Skipped:', emotionErr.message || emotionErr);
         }
-      } catch (emotionErr) {
-        // Silent fallback — emotion engine not loaded yet or model downloading
-        console.debug('[EMOTION] Skipped:', emotionErr.message || emotionErr);
       }
 
       const requestPayload = {
@@ -1406,7 +1405,7 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
         stream: !isToolRequest,
         messages: ollamaMessages,
         options: {
-          num_ctx: brainMode === 'nexus' ? 8192 : 16384,
+          num_ctx: isSmallModel ? 4096 : (brainMode === 'nexus' ? 8192 : 16384),
           temperature: parseFloat(Math.max(0.1, Math.min(2.0, soulParams.temperature + emotionDeltas.temperature_delta)).toFixed(2)),
           top_p: parseFloat(Math.max(0.1, Math.min(1.0, soulParams.top_p + emotionDeltas.top_p_delta)).toFixed(2)),
           top_k: Math.max(5, Math.min(100, soulParams.top_k + emotionDeltas.top_k_delta)),
