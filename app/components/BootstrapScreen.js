@@ -37,7 +37,8 @@ export default function BootstrapScreen({ onReady }) {
       } else if (!ffmpegStatus) {
         setStage('ffmpeg_missing');
       } else {
-        // Kick off Vision Model Download silently in the background
+        // Kick off default Chat Model + Vision Model downloads silently in background
+        invoke('pull_ollama_model', { modelName: 'qwen3:8b' }).catch(console.error);
         invoke('pull_ollama_model', { modelName: 'qwen2.5vl:7b' }).catch(console.error);
         
         // Move to Python validation
