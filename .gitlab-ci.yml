@@ -27,7 +27,7 @@ build:linux:
     - apt-get update
     - apt-get install -y curl build-essential wget git software-properties-common
     - apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-    - apt-get install -y libssl-dev pkg-config
+    - apt-get install -y libssl-dev pkg-config xdg-utils
     # Install Python 3.13 via deadsnakes PPA (Ubuntu 22.04 ships 3.10 which is too old)
     - add-apt-repository -y ppa:deadsnakes/ppa
     - apt-get update
