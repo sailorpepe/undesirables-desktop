@@ -156,7 +156,12 @@ export default function BootstrapScreen({ onReady }) {
         {stage === 'ffmpeg_missing' && !isInstalling && (
           <div className="bg-yellow-900/20 border border-yellow-400/30 rounded-lg p-4 mb-4">
             <p className="text-yellow-300 text-sm font-mono mb-2">⚠️ FFmpeg missing</p>
-            <p className="text-[#e0faec]/50 text-xs mb-4">Required for video collabs. Can be installed automatically.</p>
+            <p className="text-[#e0faec]/50 text-xs mb-3">Required for video rendering, voice synthesis, and media processing.</p>
+            <div className="bg-black/40 rounded p-2.5 mb-3 border border-[#e0faec]/10">
+              <p className="text-[#e0faec]/30 text-[10px] font-mono mb-1">Manual install — open Terminal and run:</p>
+              <p className="text-[#39ff14] text-xs font-mono select-all cursor-text">brew install ffmpeg</p>
+              <p className="text-[#e0faec]/20 text-[10px] font-mono mt-1">Then relaunch the app.</p>
+            </div>
             <div className="flex gap-2">
               <button
                 onClick={() => handleAutoInstall('ffmpeg')}
@@ -165,10 +170,10 @@ export default function BootstrapScreen({ onReady }) {
                  <Terminal size={14} /> AUTO-DEPLOY FFMPEG
               </button>
               <button
-                onClick={() => { setStage('provisioning_python'); runChecks(); }}
+                onClick={() => { setFfmpegOk(true); setStage('provisioning_python'); runChecks(); }}
                 className="flex-1 px-3 py-2 bg-black/30 border border-[#e0faec]/20 rounded text-[#e0faec]/50 text-xs font-mono hover:text-[#e0faec] transition-colors"
               >
-                 Skip
+                 Skip for now
               </button>
             </div>
           </div>

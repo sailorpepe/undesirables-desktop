@@ -122,15 +122,25 @@ async fn check_ollama_status() -> Result<bool, String> {
 
 #[tauri::command]
 async fn check_ffmpeg_status() -> Result<bool, String> {
-    match std::process::Command::new("ffmpeg")
-        .arg("-version")
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-    {
-        Ok(status) => Ok(status.success()),
-        Err(_) => Ok(false),
+    // Check common full paths first (handles fresh Homebrew installs where PATH isn't set)
+    let candidates = [
+        "/opt/homebrew/bin/ffmpeg",   // macOS Apple Silicon
+        "/usr/local/bin/ffmpeg",      // macOS Intel / Linux manual install
+        "ffmpeg",                      // Fall back to PATH
+    ];
+    for ffmpeg in &candidates {
+        if let Ok(status) = std::process::Command::new(ffmpeg)
+            .arg("-version")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+        {
+            if status.success() {
+                return Ok(true);
+            }
+        }
     }
+    Ok(false)
 }
 
 #[tauri::command]
@@ -148,11 +158,25 @@ async fn install_dependency(tool: String) -> Result<String, String> {
     // SECURITY: Strict whitelist — only 'ollama' and 'ffmpeg' are valid.
     // The tool param is matched, NEVER interpolated into a shell string.
     let os = std::env::consts::OS;
+
+    // On macOS, resolve brew to its full path (handles fresh installs where PATH isn't set yet)
+    let brew_path: &str = if os == "macos" {
+        if std::path::Path::new("/opt/homebrew/bin/brew").exists() {
+            "/opt/homebrew/bin/brew"       // Apple Silicon
+        } else if std::path::Path::new("/usr/local/bin/brew").exists() {
+            "/usr/local/bin/brew"          // Intel Mac
+        } else {
+            "brew"                         // Fall back to PATH
+        }
+    } else {
+        "brew"
+    };
+
     let (program, args): (&str, Vec<&str>) = match (tool.as_str(), os) {
-        ("ollama", "macos")   => ("brew", vec!["install", "ollama"]),
+        ("ollama", "macos")   => (brew_path, vec!["install", "ollama"]),
         ("ollama", "linux")   => ("sh", vec!["-c", "curl -fsSL https://ollama.com/install.sh | sh"]),
         ("ollama", "windows") => ("winget", vec!["install", "--id", "Ollama.Ollama", "--accept-source-agreements", "--accept-package-agreements"]),
-        ("ffmpeg", "macos")   => ("brew", vec!["install", "ffmpeg"]),
+        ("ffmpeg", "macos")   => (brew_path, vec!["install", "ffmpeg"]),
         ("ffmpeg", "linux")   => ("sh", vec!["-c", "sudo apt-get install -y ffmpeg || sudo dnf install -y ffmpeg"]),
         ("ffmpeg", "windows") => ("winget", vec!["install", "--id", "Gyan.FFmpeg", "--accept-source-agreements", "--accept-package-agreements"]),
         _ => return Err(format!("Security: '{}' is not an installable dependency on {}.", tool, os)),
