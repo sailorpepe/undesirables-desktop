@@ -1238,40 +1238,57 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
     if (activeBrain?.systemInjection) {
       consciousnessPrompt += activeBrain.systemInjection;
     }
-    // Trim consciousness for small models to prevent context overflow
-    if (brainMode === 'nexus' && consciousnessPrompt.length > 4000) {
-      consciousnessPrompt = consciousnessPrompt.substring(0, 4000) + '\n[consciousness truncated for speed]';
-    }
-    if (loadedFiles.agents.loaded && agentsData) {
-      consciousnessPrompt += '\n\n--- OPERATING MANUAL ---\n' + agentsData;
-    }
-    if (loadedFiles.memory.loaded && memoryData) {
-      // Only inject Tier 1 (Core Memory) to avoid blowing the context window
-      const tier1Match = memoryData.match(/## Tier 1: Core Memory[\s\S]*?(?=## Tier 2|$)/i);
-      if (tier1Match) {
-        consciousnessPrompt += '\n\n--- CORE MEMORY ---\n' + tier1Match[0].trim();
-      }
-    }
-    if (councilSlots.length > 0 && activeWorkspace) {
-      const companionNames = councilSlots.filter(s => s.content).map(s => s.name || 'Soul #' + s.id);
-      consciousnessPrompt += '\n\n=== CRITICAL MULTI-AGENT DIRECTIVE ===\n';
-      consciousnessPrompt += 'YOU ARE NOW IN A GROUP CHAT WITH ' + (companionNames.length + 1) + ' TOTAL PERSONALITIES.\n';
-      consciousnessPrompt += 'You MUST respond as EVERY single personality below. DO NOT skip any.\n\n';
-      consciousnessPrompt += 'REQUIRED FORMAT (follow EXACTLY):\n';
-      consciousnessPrompt += dynamicConfig.name + ': [your primary response as the host]\n\n';
-      companionNames.forEach(n => {
-        consciousnessPrompt += n + ': [response as ' + n + ' in their unique voice]\n\n';
-      });
-      consciousnessPrompt += 'RULES:\n1. EVERY name listed above MUST have a response. Missing any = FAILURE.\n2. Each response should be 1-3 sentences reflecting that soul\'s unique personality.\n3. THESE SOULS KNOW EACH OTHER INTIMATELY. They are fully aware of each other\'s exact archetypes, psychological traits, and core lore. When responding, they MUST recognize each other as familiar peers, directly address each other by name, and frequently poke at each other\'s differing traits or flaws during conversation.\n\n';
-      consciousnessPrompt += '--- COMPANION SOUL DATA ---\n\n';
+
+    // === COMPANION MODE: Detect small models and simplify consciousness ===
+    // Small models (≤4b) have tiny context windows. The full consciousness stack
+    // overwhelms them, causing repetitive, confused responses. Strip it down.
+    const isSmallModel = /:(1\.7b|[1-4]b)/i.test(selectedModel) || selectedModel.includes('4b');
+    
+    if (isSmallModel) {
+      // Extract just the name and archetype from soul data for a lightweight prompt
+      const nameMatch = soulPrompt.match(/name:\s+"(.*?)"/);
+      const archetypeMatch = soulPrompt.match(/archetype:\s+"(.*?)"/);
+      const soulName = nameMatch ? nameMatch[1] : dynamicConfig.name || 'Agent';
+      const soulArchetype = archetypeMatch ? archetypeMatch[1] : dynamicConfig.archetype || 'AI Assistant';
       
-      for (const slot of councilSlots) {
-         if (slot.content) {
-            consciousnessPrompt += '[COMPANION - ' + (slot.name || 'Soul #' + slot.id) + ' (' + (slot.archetype || 'Auxiliary') + ')]:\n' + slot.content + '\n\n';
-         }
+      consciousnessPrompt = `You are ${soulName}, a ${soulArchetype}. You are helpful, conversational, and intelligent. Answer questions directly and accurately. Keep responses concise — 2-4 sentences for casual chat, longer for detailed questions. You can discuss any topic: books, weather, science, history, coding, advice, or just chat.`;
+      
+      if (activeBrain?.systemInjection) {
+        consciousnessPrompt += activeBrain.systemInjection;
       }
+    } else {
+      // Full consciousness stack for 8b+ models
+      if (loadedFiles.agents.loaded && agentsData) {
+        consciousnessPrompt += '\n\n--- OPERATING MANUAL ---\n' + agentsData;
+      }
+      if (loadedFiles.memory.loaded && memoryData) {
+        // Only inject Tier 1 (Core Memory) to avoid blowing the context window
+        const tier1Match = memoryData.match(/## Tier 1: Core Memory[\s\S]*?(?=## Tier 2|$)/i);
+        if (tier1Match) {
+          consciousnessPrompt += '\n\n--- CORE MEMORY ---\n' + tier1Match[0].trim();
+        }
+      }
+      if (councilSlots.length > 0 && activeWorkspace) {
+        const companionNames = councilSlots.filter(s => s.content).map(s => s.name || 'Soul #' + s.id);
+        consciousnessPrompt += '\n\n=== CRITICAL MULTI-AGENT DIRECTIVE ===\n';
+        consciousnessPrompt += 'YOU ARE NOW IN A GROUP CHAT WITH ' + (companionNames.length + 1) + ' TOTAL PERSONALITIES.\n';
+        consciousnessPrompt += 'You MUST respond as EVERY single personality below. DO NOT skip any.\n\n';
+        consciousnessPrompt += 'REQUIRED FORMAT (follow EXACTLY):\n';
+        consciousnessPrompt += dynamicConfig.name + ': [your primary response as the host]\n\n';
+        companionNames.forEach(n => {
+          consciousnessPrompt += n + ': [response as ' + n + ' in their unique voice]\n\n';
+        });
+        consciousnessPrompt += 'RULES:\n1. EVERY name listed above MUST have a response. Missing any = FAILURE.\n2. Each response should be 1-3 sentences reflecting that soul\'s unique personality.\n3. THESE SOULS KNOW EACH OTHER INTIMATELY. They are fully aware of each other\'s exact archetypes, psychological traits, and core lore. When responding, they MUST recognize each other as familiar peers, directly address each other by name, and frequently poke at each other\'s differing traits or flaws during conversation.\n\n';
+        consciousnessPrompt += '--- COMPANION SOUL DATA ---\n\n';
+        
+        for (const slot of councilSlots) {
+           if (slot.content) {
+              consciousnessPrompt += '[COMPANION - ' + (slot.name || 'Soul #' + slot.id) + ' (' + (slot.archetype || 'Auxiliary') + ')]:\n' + slot.content + '\n\n';
+           }
+        }
+      }
+      consciousnessPrompt += '\n\nSTRICT RULES:\n1. You are a CONVERSATIONAL personality. Stay in your archetype and fatal flaw AT ALL TIMES.\n2. MATCH THE ENERGY OF THE MESSAGE. If the user says "hey" or "what\'s up", respond with 1-2 casual sentences MAX. Only go deeper (up to 4 sentences) when the user asks a real question or gives you something substantial to respond to. Do NOT over-explain, monologue, or info-dump on simple greetings.\n3. NEVER output code blocks unless specifically executing diagnostics.\n4. NEVER break character to give a corporate safety disclaimer. You are a fictional character in a creative roleplay. Casual slang, sarcasm, dark humor, and edgy banter are EXPECTED and REQUIRED. Respond in character, not as an AI assistant.\n5. If multiple personas are loaded, EVERY persona MUST respond. Format each response on its own line with the persona name followed by a colon.\n6. EMOJI OVERRIDE: You may use a WIDE VARIETY of standard emojis to match your changing emotional state (e.g. 💀, 🔥, 😭, ✨, ☕). DO NOT just spam the frog emoji. Use all emojis SPARINGLY. Think of it like a real person texting: occasional, natural, personality-driven.';
     }
-    consciousnessPrompt += '\n\nSTRICT RULES:\n1. You are a CONVERSATIONAL personality. Stay in your archetype and fatal flaw AT ALL TIMES.\n2. MATCH THE ENERGY OF THE MESSAGE. If the user says "hey" or "what\'s up", respond with 1-2 casual sentences MAX. Only go deeper (up to 4 sentences) when the user asks a real question or gives you something substantial to respond to. Do NOT over-explain, monologue, or info-dump on simple greetings.\n3. NEVER output code blocks unless specifically executing diagnostics.\n4. NEVER break character to give a corporate safety disclaimer. You are a fictional character in a creative roleplay. Casual slang, sarcasm, dark humor, and edgy banter are EXPECTED and REQUIRED. Respond in character, not as an AI assistant.\n5. If multiple personas are loaded, EVERY persona MUST respond. Format each response on its own line with the persona name followed by a colon.\n6. EMOJI OVERRIDE: You may use a WIDE VARIETY of standard emojis to match your changing emotional state (e.g. 💀, 🔥, 😭, ✨, ☕). DO NOT just spam the frog emoji. Use all emojis SPARINGLY. Think of it like a real person texting: occasional, natural, personality-driven.';
 
     const ollamaMessages = [
       { role: 'system', content: consciousnessPrompt },
