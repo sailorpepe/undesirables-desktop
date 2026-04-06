@@ -297,9 +297,52 @@ async fn setup_python_env() -> Result<String, String> {
     // SECURITY (CRIT-1): Direct Command invocations — no shell interpolation.
     // Step 1: Create venv in the WRITABLE data dir (not the signed/packaged bundle)
     let venv_dir = data_dir.join(".venv");
+    // If venv exists but is broken (no python binary), delete and recreate
+    if venv_dir.exists() {
+        let venv_python = if cfg!(windows) {
+            venv_dir.join("Scripts/python.exe")
+        } else {
+            venv_dir.join("bin/python3")
+        };
+        if !venv_python.exists() {
+            let _ = std::fs::remove_dir_all(&venv_dir);
+        }
+    }
     if !venv_dir.exists() {
-        let python_cmd = if cfg!(windows) { "python" } else { "python3" };
-        let venv_out = Command::new(python_cmd)
+        // Resolve python: check common install paths before falling back to PATH
+        let python_cmd = if cfg!(windows) {
+            "python".to_string()
+        } else {
+            // Check explicit paths first (handles fresh python.org installs where PATH isn't set)
+            let mut candidates: Vec<String> = vec![
+                "/opt/homebrew/bin/python3".to_string(),                                          // Homebrew Apple Silicon
+                "/usr/local/bin/python3".to_string(),                                             // Homebrew Intel / manual
+                "/Library/Frameworks/Python.framework/Versions/Current/bin/python3".to_string(),  // python.org symlink
+            ];
+            // Dynamically scan python.org framework versions (future-proof for 3.15, 3.16, etc.)
+            if let Ok(entries) = std::fs::read_dir("/Library/Frameworks/Python.framework/Versions") {
+                let mut versions: Vec<String> = entries
+                    .filter_map(|e| e.ok())
+                    .filter_map(|e| {
+                        let name = e.file_name().to_string_lossy().to_string();
+                        if name != "Current" && name.starts_with('3') {
+                            Some(format!("/Library/Frameworks/Python.framework/Versions/{}/bin/python3", name))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                versions.sort_by(|a, b| b.cmp(a)); // Newest first
+                candidates.extend(versions);
+            }
+            candidates.push("/usr/bin/python3".to_string()); // Xcode CLT (last resort)
+            
+            candidates.iter()
+                .find(|p| std::path::Path::new(p.as_str()).exists())
+                .cloned()
+                .unwrap_or_else(|| "python3".to_string())
+        };
+        let venv_out = Command::new(&python_cmd)
             .args(&["-m", "venv"])
             .arg(venv_dir.to_string_lossy().as_ref())
             .output()
