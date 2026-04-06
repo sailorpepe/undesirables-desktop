@@ -62,3 +62,6 @@ node_modules/
 .next/
 out/
 src-tauri/binaries/
+
+# Build artifact: CI recreates mcp-dist from source
+src-tauri/mcp-dist/
