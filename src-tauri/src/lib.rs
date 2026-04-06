@@ -92,6 +92,82 @@ async fn check_ollama_status() -> Result<bool, String> {
         .build()
         .map_err(|e| e.to_string())?;
 
+    // First check: is Ollama already running?
+    let is_running = client
+        .get("http://127.0.0.1:11434/api/tags")
+        .send()
+        .await
+        .map(|r| r.status().is_success())
+        .unwrap_or(false);
+
+    // If not running, try to auto-start it
+    if !is_running {
+        let os = std::env::consts::OS;
+        let started = match os {
+            "macos" => {
+                // Try Ollama.app first (preferred — it auto-starts on future logins)
+                let app_result = std::process::Command::new("open")
+                    .args(&["-a", "Ollama"])
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .status();
+                if app_result.map(|s| s.success()).unwrap_or(false) {
+                    true
+                } else {
+                    // Fall back to CLI: ollama serve (for Homebrew installs)
+                    let brew_ollama = if std::path::Path::new("/opt/homebrew/bin/ollama").exists() {
+                        "/opt/homebrew/bin/ollama"
+                    } else {
+                        "ollama"
+                    };
+                    std::process::Command::new(brew_ollama)
+                        .arg("serve")
+                        .stdout(std::process::Stdio::null())
+                        .stderr(std::process::Stdio::null())
+                        .spawn()
+                        .is_ok()
+                }
+            },
+            "linux" => {
+                std::process::Command::new("ollama")
+                    .arg("serve")
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .spawn()
+                    .is_ok()
+            },
+            "windows" => {
+                std::process::Command::new("ollama")
+                    .arg("serve")
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .spawn()
+                    .is_ok()
+            },
+            _ => false,
+        };
+
+        if started {
+            // Give Ollama up to 5 seconds to come online
+            for _ in 0..10 {
+                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                if let Ok(resp) = client.get("http://127.0.0.1:11434/api/tags").send().await {
+                    if resp.status().is_success() {
+                        // Ollama is online — run version check
+                        return validate_ollama_version(&client).await;
+                    }
+                }
+            }
+        }
+
+        return Ok(false);
+    }
+
+    // Ollama is running — validate version
+    validate_ollama_version(&client).await
+}
+
+async fn validate_ollama_version(client: &reqwest::Client) -> Result<bool, String> {
     // SECURITY (HIGH-2): Validate Ollama Version >= 0.1.47 (CVE-2024-45436 Zip Slip mitigation)
     if let Ok(version_check) = client.get("http://127.0.0.1:11434/api/version").send().await {
         if let Ok(version_data) = version_check.json::<serde_json::Value>().await {
@@ -101,7 +177,6 @@ async fn check_ollama_status() -> Result<bool, String> {
                 if parts.len() >= 3 {
                     if let (Ok(major), Ok(minor), Ok(patch)) = (parts[0].parse::<u32>(), parts[1].parse::<u32>(), parts[2].parse::<u32>()) {
                         if major == 0 && minor == 1 && patch < 47 {
-                            // Version < 0.1.47 is unpatched
                             return Err(format!("Security Block: Ollama version {} is vulnerable to CVE-2024-45436 path traversal. Please update.", version_str));
                         }
                     }
@@ -109,15 +184,7 @@ async fn check_ollama_status() -> Result<bool, String> {
             }
         }
     }
-
-    match client
-        .get("http://127.0.0.1:11434/api/tags")
-        .send()
-        .await
-    {
-        Ok(response) => Ok(response.status().is_success()),
-        Err(_) => Ok(false),
-    }
+    Ok(true)
 }
 
 #[tauri::command]

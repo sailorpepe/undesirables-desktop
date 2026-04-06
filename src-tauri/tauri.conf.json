@@ -23,7 +23,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' http://localhost:11434 http://127.0.0.1:11434 http://localhost:8000 http://127.0.0.1:8000 http://localhost:3000 http://localhost:3001 https://api.groq.com https://*.duckduckgo.com https://tcgcsv.com ipc: tauri:; img-src 'self' data: asset: blob:; media-src 'self' asset: blob: tauri:; worker-src 'self' blob:; form-action 'none'; base-uri 'none'",
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' http://localhost:11434 http://127.0.0.1:11434 http://localhost:8000 http://127.0.0.1:8000 http://localhost:3000 http://localhost:3001 https://api.groq.com https://*.duckduckgo.com https://tcgcsv.com https://wttr.in ipc: tauri:; img-src 'self' data: asset: blob:; media-src 'self' asset: blob: tauri:; worker-src 'self' blob:; form-action 'none'; base-uri 'none'",
       "assetProtocol": {
         "enable": true,
         "scope": {
