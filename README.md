@@ -28,11 +28,86 @@ This is **not** a chatbot wrapper. It's a full AI workstation that runs natively
 
 ---
 
-## 🚀 Quick Start (Step-by-Step)
+## 📦 Installation (Download Pre-Built Release)
+
+If you just want to **use the app**, download the latest release for your platform:
+
+👉 **[Download from GitLab Releases](https://gitlab.com/meme-merchants/undesirables-desktop/-/releases)**
+
+| Platform | File | How to Install |
+|---|---|---|
+| **macOS** (Apple Silicon) | `.dmg` | Open DMG → drag to Applications |
+| **Linux** (x86_64) | `.AppImage` | `chmod +x *.AppImage` → double-click |
+| **Windows** (x64) | `.msi` | Double-click → follow installer |
+
+---
+
+### ⚠️ macOS: "App is damaged" or moves to Trash
+
+macOS blocks unsigned apps by default. This is normal for indie software. Fix it:
+
+**Option 1 — Right-click to open:**
+1. Right-click (or Control+click) on `The_Undesirables.app`
+2. Click **Open** → click **Open** again on the warning
+
+**Option 2 — Remove quarantine flag (if Option 1 doesn't work):**
+```bash
+xattr -cr /Applications/The_Undesirables.app
+```
+
+---
+
+### 🧩 First Launch Setup
+
+The app will walk you through setup on first launch. Here's what it needs:
+
+#### 1. Ollama (Required — Local AI Engine)
+Download the app from [ollama.com/download](https://ollama.com/download) — **use the app version**, not Homebrew. The app runs automatically in your menu bar.
+
+> **Important:** Make sure the Ollama icon appears in your menu bar (macOS) or system tray (Linux/Windows). If it's not there, Ollama isn't running and the app can't connect.
+
+The desktop app will automatically download the default AI model (`qwen3:8b`) on first launch. If you need to do it manually:
+```bash
+ollama pull qwen3:8b
+```
+
+#### 2. FFmpeg (Required — Media Processing)
+```bash
+# macOS (via Homebrew)
+brew install ffmpeg
+
+# Linux (Ubuntu/Debian)
+sudo apt-get install -y ffmpeg
+
+# Windows (via winget)
+winget install --id Gyan.FFmpeg
+```
+
+> **macOS tip:** If you just installed Homebrew for the first time, run this before `brew install`:
+> ```bash
+> eval "$(/opt/homebrew/bin/brew shellenv zsh)"
+> ```
+
+#### 3. Python 3.11+ (Required)
+Download from [python.org](https://python.org) if not already installed. The app creates its own virtual environment automatically.
+
+---
+
+### 🧠 Choosing the Right Model for Your Hardware
+
+| RAM | Recommended Model | Pull Command |
+|---|---|---|
+| **8GB** | `qwen3:4b` (2.6GB) | `ollama pull qwen3:4b` |
+| **16GB** | `qwen3:8b` (5GB) ✅ Default | `ollama pull qwen3:8b` |
+| **32GB+** | `gemma4:26b` (16GB) | `ollama pull gemma4:26b` |
+
+To switch models inside the app, use the model dropdown in the chat interface.
+
+---
+
+## 🚀 Building From Source (Developers)
 
 ### Prerequisites
-
-Before you begin, make sure you have the following installed on your system:
 
 | Tool | Version | How to Install |
 |---|---|---|
@@ -59,18 +134,12 @@ rustup update
 
 ### Step 1: Clone the Repository from GitLab
 ```bash
-git clone https://gitlab.com/TheUndesirables/desktop.git
-cd desktop
+git clone https://gitlab.com/meme-merchants/undesirables-desktop.git
+cd undesirables-desktop
 ```
-
-> **Note:** We migrated from GitHub to GitLab. If you had the old GitHub remote, update it:
-> ```bash
-> git remote set-url origin https://gitlab.com/TheUndesirables/desktop.git
-> ```
 
 ### Step 2: Install Frontend Dependencies
 ```bash
-cd undesirables-ui
 npm install
 ```
 
@@ -89,24 +158,13 @@ source venv/bin/activate        # macOS / Linux
 pip install -r requirements.txt
 ```
 
-### Step 4: Configure Environment Variables
+### Step 4: Pull a Local LLM via Ollama
 ```bash
-cp .env.example .env
-```
-Open `.env` in a text editor and add your free API keys (see [API Keys](#-api-keys-free) section below).
-
-### Step 5: Pull a Local LLM via Ollama
-```bash
-# Recommended — fast and capable
 ollama pull qwen3:8b
-
-# Also recommended for vision tasks (card grading, image analysis)
-ollama pull llama3.2-vision
 ```
 
-### Step 6: Launch the App
+### Step 5: Launch the App
 ```bash
-cd ../undesirables-ui
 npx tauri dev
 ```
 
@@ -116,33 +174,41 @@ The first launch will compile the Rust backend (~2-5 minutes). Subsequent launch
 
 ## ⚠️ Troubleshooting
 
+### macOS: "App is damaged" or sent to Trash
+```bash
+xattr -cr /Applications/The_Undesirables.app
+```
+
+### "Connection Error" or "Load Failed"
+Ollama isn't running. Make sure:
+1. The Ollama icon is in your menu bar (download from [ollama.com/download](https://ollama.com/download))
+2. Or run `ollama serve` in Terminal
+
+### "HTTP Error: 404 Not Found"
+The AI model isn't downloaded yet. Pull it:
+```bash
+ollama pull qwen3:8b
+```
+
+### FFmpeg not detected after installing
+If you just installed Homebrew, run this first:
+```bash
+eval "$(/opt/homebrew/bin/brew shellenv zsh)"
+brew install ffmpeg
+```
+Then relaunch the app.
+
 ### "Python executor failed" or "module not found"
-The app uses the Python venv at `undesirables-mcp-server/venv/`. Make sure you installed dependencies there:
+The Python virtual environment needs dependencies:
 ```bash
 cd undesirables-mcp-server
 ./venv/bin/python -m pip install -r requirements.txt
 ```
 
-### "Ollama returned 404"
-The model you're trying to use isn't installed. Check what's available:
-```bash
-ollama list
-```
-
-### "cargo: command not found"
-Rust isn't in your PATH. Run:
-```bash
-source $HOME/.cargo/env
-```
-
 ### App won't start after a crash
-Kill any orphaned processes and restart:
 ```bash
 cd undesirables-ui && npx tauri dev
 ```
-
-### macOS: "developer cannot be verified"
-Right-click the app → "Open" to bypass Gatekeeper on first run.
 
 ---
 
