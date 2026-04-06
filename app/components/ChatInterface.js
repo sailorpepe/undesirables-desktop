@@ -4667,6 +4667,44 @@ Output ONLY the raw HTML string inside a \`\`\`html code block. Do not add any c
               );
             })}
             <div className="flex-1" />
+            {/* Model Selector — visible so users can switch models */}
+            <div className="relative group/model">
+              <button 
+                className="flex items-center gap-1.5 text-[9px] font-mono text-[#e0faec]/50 hover:text-neon-primary px-2 py-1 rounded border border-white/10 hover:border-neon-primary/30 transition-all cursor-pointer"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-neon-primary animate-pulse" />
+                {selectedModel}
+                <span className="text-[8px] opacity-50">▼</span>
+              </button>
+              <div className="absolute bottom-full right-0 mb-1 min-w-[200px] max-h-48 overflow-y-auto bg-[#0a0a0a]/95 backdrop-blur-lg border border-neon-primary/30 rounded-lg opacity-0 pointer-events-none group-hover/model:opacity-100 group-hover/model:pointer-events-auto transition-all duration-200 z-50 shadow-xl custom-scrollbar">
+                <div className="p-2 border-b border-white/10">
+                  <div className="text-[9px] font-mono text-neon-primary/60 uppercase tracking-wider">Installed Models</div>
+                </div>
+                {availableModels.length > 0 ? availableModels.map(m => (
+                  <button
+                    key={m}
+                    onClick={() => {
+                      setSelectedModel(m);
+                      localStorage.setItem('undesirables_model', m);
+                      setLogs(prev => [...prev, { role: 'system', content: `[SYS] Model switched to ${m}` }]);
+                    }}
+                    className={`w-full text-left px-3 py-1.5 text-[10px] font-mono transition-all ${
+                      selectedModel === m 
+                        ? 'text-neon-primary bg-neon-primary/10' 
+                        : 'text-white/60 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    {selectedModel === m && <span className="mr-1">●</span>}
+                    {m}
+                    {m.includes('4b') && <span className="ml-2 text-[8px] text-yellow-400/60">(8GB)</span>}
+                    {m.includes('8b') && <span className="ml-2 text-[8px] text-green-400/60">(16GB)</span>}
+                    {(m.includes('26b') || m.includes('27b') || m.includes('35b')) && <span className="ml-2 text-[8px] text-purple-400/60">(32GB+)</span>}
+                  </button>
+                )) : (
+                  <div className="px-3 py-2 text-[10px] font-mono text-white/30">No models found</div>
+                )}
+              </div>
+            </div>
             <button onClick={() => { if (window.confirm('Purge chat history?')) { setChatHistory([]); setLogs([{ role: 'system', content: '[SYS] Purged.' }]); } }}
               className="text-[9px] text-zinc-500 hover:text-red-500 hover:bg-red-500/10 px-2 py-0.5 rounded transition-all font-mono uppercase tracking-widest border border-transparent hover:border-red-500/30"
             >[ Clear ]</button>
