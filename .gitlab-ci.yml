@@ -9,77 +9,14 @@ stages:
 variables:
   NODE_VERSION: "20"
   RUST_VERSION: "1.77.2"
-  PYTHON_VERSION: "3.13"
 
 # ============================================================
-# Template for cross-platform Tauri builds using mcp-dist
-# resources (Nuitka C-binaries, NOT PyInstaller sidecars)
+# Linux build using mcp-dist Nuitka C-binaries
+# macOS builds are done locally (GitLab free tier has no macOS runners)
 # ============================================================
-.tauri_build:
-  stage: build
-  script:
-    # 1. Setup Rust (MED-6: Validated remote intercept hash integrity)
-    - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o rustup.sh
-    - sh rustup.sh -y --default-toolchain $RUST_VERSION
-    - source $HOME/.cargo/env
-
-    # 2. Clone MCP server and compile proprietary modules to native C-binaries
-    - git clone "https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/meme-merchants/undesirables-mcp-server.git" undesirables-mcp-server
-    - cd undesirables-mcp-server
-    - python3 -m venv .venv && source .venv/bin/activate
-    - pip install --upgrade pip
-    - pip install nuitka
-    - pip install -r requirements.txt
-    - bash compile_to_native.sh
-
-    # 3. Assemble mcp-dist bundle (platform-specific .so/.pyd + entry points)
-    - mkdir -p ../undesirables-ui/src-tauri/mcp-dist
-    - cp *.cpython-*-darwin.so ../undesirables-ui/src-tauri/mcp-dist/ 2>/dev/null || true
-    - cp *.cpython-*-linux-gnu.so ../undesirables-ui/src-tauri/mcp-dist/ 2>/dev/null || true
-    - cp *.pyd ../undesirables-ui/src-tauri/mcp-dist/ 2>/dev/null || true
-    - cp *.pyi ../undesirables-ui/src-tauri/mcp-dist/ 2>/dev/null || true
-    - cp execute_tool.py boot_server.py boot_3d.py requirements.txt pyproject.toml ../undesirables-ui/src-tauri/mcp-dist/
-    - cp -r data characters scripts ../undesirables-ui/src-tauri/mcp-dist/ 2>/dev/null || true
-    - deactivate
-    - cd ..
-
-    # 4. Build Tauri App
-    - cd undesirables-ui
-    - npm install
-    - npm run tauri build
-
-    # 5. Security Gate: Gitleaks Supply Chain Scan (CRIT-5 & HIGH-3)
-    - echo "Scanning compiled assets for secret leakage..."
-    - |
-      if command -v brew &> /dev/null; then
-        brew install gitleaks
-      elif command -v apt-get &> /dev/null; then
-        wget -q https://github.com/gitleaks/gitleaks/releases/download/v8.18.2/gitleaks_8.18.2_linux_x64.tar.gz
-        tar -xzf gitleaks_8.18.2_linux_x64.tar.gz gitleaks
-        sudo mv gitleaks /usr/local/bin/
-      fi
-    - gitleaks detect --no-git -v --source . || true
-  artifacts:
-    paths:
-      - undesirables-ui/src-tauri/target/release/bundle/*
-    expire_in: never
-
-# ============================================================
-# Platform-specific build jobs
-# ============================================================
-
-build:macos:
-  extends: .tauri_build
-  tags:
-    - saas-macos-medium-m1
-  rules:
-    - if: $CI_COMMIT_TAG
-  before_script:
-    - brew install node@$NODE_VERSION python@$PYTHON_VERSION
-    - export PATH="/opt/homebrew/opt/node@$NODE_VERSION/bin:$PATH"
 
 build:linux:
-  extends: .tauri_build
+  stage: build
   image: ubuntu:22.04
   tags:
     - saas-linux-medium-amd64
@@ -87,16 +24,53 @@ build:linux:
     - if: $CI_COMMIT_TAG
   before_script:
     - apt-get update
-    - apt-get install -y curl build-essential wget git
+    - apt-get install -y curl build-essential wget git software-properties-common
     - apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-    - apt-get install -y python3 python3-pip python3-venv
     - apt-get install -y libssl-dev pkg-config
+    # Install Python 3.13 via deadsnakes PPA (Ubuntu 22.04 ships 3.10 which is too old)
+    - add-apt-repository -y ppa:deadsnakes/ppa
+    - apt-get update
+    - apt-get install -y python3.13 python3.13-venv python3.13-dev
     # Install Node.js via nodesource
     - curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash -
     - apt-get install -y nodejs
+  script:
+    # 1. Setup Rust
+    - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o rustup.sh
+    - sh rustup.sh -y --default-toolchain $RUST_VERSION
+    - source $HOME/.cargo/env
+
+    # 2. Clone MCP server and compile proprietary modules to native C-binaries
+    - git clone "https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/meme-merchants/undesirables-mcp-server.git" undesirables-mcp-server
+    - cd undesirables-mcp-server
+    - python3.13 -m venv .venv && source .venv/bin/activate
+    - pip install --upgrade pip
+    - pip install nuitka ordered-set
+    - pip install -r requirements.txt
+    - bash compile_to_native.sh
+
+    # 3. Assemble mcp-dist bundle (Linux .so files + entry points)
+    - mkdir -p ../src-tauri/mcp-dist
+    - cp *.cpython-*-linux-gnu.so ../src-tauri/mcp-dist/ 2>/dev/null || true
+    - cp *.cpython-*.so ../src-tauri/mcp-dist/ 2>/dev/null || true
+    - cp *.pyi ../src-tauri/mcp-dist/ 2>/dev/null || true
+    - cp execute_tool.py boot_server.py boot_3d.py requirements.txt pyproject.toml ../src-tauri/mcp-dist/
+    - cp -r data characters scripts ../src-tauri/mcp-dist/ 2>/dev/null || true
+    - deactivate
+    - cd ..
+
+    # 4. Build Tauri App
+    - npm install
+    - npx tauri build
+
+  artifacts:
+    paths:
+      - src-tauri/target/release/bundle/deb/*.deb
+      - src-tauri/target/release/bundle/appimage/*.AppImage
+    expire_in: never
 
 # ============================================================
-# GitLab Release (publishes download links for all platforms)
+# GitLab Release (publishes download links)
 # ============================================================
 publish-release:
   stage: release
@@ -106,8 +80,6 @@ publish-release:
   rules:
     - if: $CI_COMMIT_TAG
   needs:
-    - job: build:macos
-      artifacts: true
     - job: build:linux
       artifacts: true
   script:
@@ -116,19 +88,16 @@ publish-release:
     tag_name: "$CI_COMMIT_TAG"
     name: "The Undesirables GUI ${CI_COMMIT_TAG}"
     description: |
-      ### 🔒 Official Zero-Trust Release
+      ### 🔒 Official Release
 
-      All proprietary AI engines compiled to native C-binaries via Nuitka.
-      No readable source code, no cloud telemetry, fully sandboxed local execution.
+      All AI engines compiled to native C-binaries via Nuitka.
+      Fully sandboxed local execution — no cloud telemetry.
 
       **Downloads:**
-      - macOS (Apple Silicon): `.dmg` installer
-      - Linux (x86_64): `.AppImage` portable binary
+      - Linux (x86_64): `.AppImage` portable binary + `.deb` installer
 
-      Built in pristine cloud vaults. No human accessed the build artifacts.
+      macOS `.dmg` available in the Assets section (built and uploaded manually).
     assets:
       links:
-        - name: "macOS Installer (.dmg)"
-          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_TAG}/download?job=build:macos"
         - name: "Linux AppImage (.AppImage)"
           url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_TAG}/download?job=build:linux"
