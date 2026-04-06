@@ -9,32 +9,80 @@ struct ProcessState {
     acestep: Mutex<Option<Child>>,
 }
 
-/// Resolve the MCP server directory dynamically.
+/// Resolve the MCP server BUNDLE directory (READ-ONLY).
+/// Contains scripts (.py) and compiled modules (.so/.pyd).
 /// In dev mode: uses the workspace peer directory.
-/// In production: uses the sidecar binary's parent directory.
-fn resolve_mcp_dir() -> PathBuf {
-    // Check if we're running from a Tauri bundle (production)
+/// In production: platform-specific resource location.
+fn resolve_mcp_bundle_dir() -> PathBuf {
     if let Ok(exe_path) = std::env::current_exe() {
         let exe_dir = exe_path.parent().unwrap_or_else(|| std::path::Path::new("."));
-        let bundled_server = exe_dir.join("server-aarch64-apple-darwin");
-        if bundled_server.exists() {
-            return exe_dir.to_path_buf();
+        // macOS: Contents/MacOS/../Resources/undesirables-mcp-server/
+        let macos_resources = exe_dir.join("../Resources/undesirables-mcp-server");
+        if macos_resources.exists() {
+            return macos_resources.canonicalize().unwrap_or(macos_resources);
         }
-        // On macOS .app bundles, binaries are in Contents/MacOS/
-        let macos_sidecar = exe_dir.join("../Resources/server-aarch64-apple-darwin");
-        if macos_sidecar.exists() {
-            return exe_dir.join("../Resources").canonicalize().unwrap_or_else(|_| exe_dir.to_path_buf());
+        // Linux/Windows: resources are next to the executable
+        let portable_resources = exe_dir.join("undesirables-mcp-server");
+        if portable_resources.exists() {
+            return portable_resources.canonicalize().unwrap_or(portable_resources);
         }
     }
-    // Dev mode fallback: resolve relative to $HOME
-    if let Some(home) = std::env::var_os("HOME") {
-        let dev_path = PathBuf::from(home).join("Documents/Meme Merchants/undesirables-mcp-server");
+    // Dev mode fallback: resolve relative to home
+    if let Some(home) = dirs::home_dir() {
+        let dev_path = home.join("Documents/Meme Merchants/undesirables-mcp-server");
         if dev_path.exists() {
             return dev_path;
         }
     }
-    // Ultimate fallback: current working directory
     std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+}
+
+/// Resolve the MCP server DATA directory (WRITABLE).
+/// Used for venv, log files, and runtime data.
+/// In dev mode: same as the bundle dir (writable workspace).
+/// In production: OS-native app data directory via `dirs` crate.
+fn resolve_mcp_data_dir() -> PathBuf {
+    // Detect production mode: check if bundle resources exist
+    if let Ok(exe_path) = std::env::current_exe() {
+        let exe_dir = exe_path.parent().unwrap_or_else(|| std::path::Path::new("."));
+        let is_production = exe_dir.join("../Resources/undesirables-mcp-server").exists()
+            || exe_dir.join("undesirables-mcp-server").exists();
+        if is_production {
+            // Use dirs crate for cross-platform app data:
+            //   macOS:   ~/Library/Application Support/
+            //   Linux:   ~/.local/share/
+            //   Windows: C:\Users\<user>\AppData\Roaming\
+            if let Some(data_base) = dirs::data_dir() {
+                let data_dir = data_base.join("com.undesirables.desktop").join("mcp-env");
+                let _ = std::fs::create_dir_all(&data_dir);
+                return data_dir;
+            }
+        }
+    }
+    // Dev mode fallback: same as bundle dir (it's writable in dev)
+    resolve_mcp_bundle_dir()
+}
+
+/// Resolve the venv Python binary path across platforms.
+/// Checks data dir first (production venv), then bundle dir, then system fallback.
+fn resolve_venv_python(data_dir: &std::path::Path, bundle_dir: &std::path::Path) -> PathBuf {
+    let candidates = if cfg!(windows) {
+        vec![
+            data_dir.join(".venv/Scripts/python.exe"),
+            bundle_dir.join(".venv/Scripts/python.exe"),
+            bundle_dir.join("venv/Scripts/python.exe"),
+        ]
+    } else {
+        vec![
+            data_dir.join(".venv/bin/python"),
+            bundle_dir.join(".venv/bin/python"),
+            bundle_dir.join("venv/bin/python"),
+        ]
+    };
+    for p in candidates {
+        if p.exists() { return p; }
+    }
+    PathBuf::from(if cfg!(windows) { "python" } else { "python3" })
 }
 
 #[tauri::command]
@@ -101,9 +149,13 @@ async fn install_dependency(tool: String) -> Result<String, String> {
     // The tool param is matched, NEVER interpolated into a shell string.
     let os = std::env::consts::OS;
     let (program, args): (&str, Vec<&str>) = match (tool.as_str(), os) {
-        ("ollama", "macos") | ("ollama", _) => ("brew", vec!["install", "ollama"]),
-        ("ffmpeg", "macos") | ("ffmpeg", _) => ("brew", vec!["install", "ffmpeg"]),
-        _ => return Err(format!("Security: '{}' is not an installable dependency.", tool)),
+        ("ollama", "macos")   => ("brew", vec!["install", "ollama"]),
+        ("ollama", "linux")   => ("sh", vec!["-c", "curl -fsSL https://ollama.com/install.sh | sh"]),
+        ("ollama", "windows") => ("winget", vec!["install", "--id", "Ollama.Ollama", "--accept-source-agreements", "--accept-package-agreements"]),
+        ("ffmpeg", "macos")   => ("brew", vec!["install", "ffmpeg"]),
+        ("ffmpeg", "linux")   => ("sh", vec!["-c", "sudo apt-get install -y ffmpeg || sudo dnf install -y ffmpeg"]),
+        ("ffmpeg", "windows") => ("winget", vec!["install", "--id", "Gyan.FFmpeg", "--accept-source-agreements", "--accept-package-agreements"]),
+        _ => return Err(format!("Security: '{}' is not an installable dependency on {}.", tool, os)),
     };
 
     let output = Command::new(program)
@@ -149,14 +201,16 @@ async fn pull_ollama_model(model_name: String) -> Result<String, String> {
 #[tauri::command]
 async fn setup_python_env() -> Result<String, String> {
     use std::process::Command;
-    let mcp_dir = resolve_mcp_dir();
+    let bundle_dir = resolve_mcp_bundle_dir();
+    let data_dir = resolve_mcp_data_dir();
     // SECURITY (CRIT-1): Direct Command invocations — no shell interpolation.
-    // Step 1: Create venv if it doesn't exist
-    let venv_dir = mcp_dir.join(".venv");
+    // Step 1: Create venv in the WRITABLE data dir (not the signed/packaged bundle)
+    let venv_dir = data_dir.join(".venv");
     if !venv_dir.exists() {
-        let venv_out = Command::new("python3")
-            .args(&["-m", "venv", ".venv"])
-            .current_dir(&mcp_dir)
+        let python_cmd = if cfg!(windows) { "python" } else { "python3" };
+        let venv_out = Command::new(python_cmd)
+            .args(&["-m", "venv"])
+            .arg(venv_dir.to_string_lossy().as_ref())
             .output()
             .map_err(|e| format!("Failed to create venv: {}", e))?;
         if !venv_out.status.success() {
@@ -164,13 +218,18 @@ async fn setup_python_env() -> Result<String, String> {
         }
     }
 
-    // Step 2: Install deps if not provisioned
+    // Step 2: Install deps if not provisioned (read requirements.txt from BUNDLE, write to DATA)
     let provisioned = venv_dir.join(".provisioned");
     if !provisioned.exists() {
-        let pip = venv_dir.join("bin/pip");
+        let pip = if cfg!(windows) {
+            venv_dir.join("Scripts/pip.exe")
+        } else {
+            venv_dir.join("bin/pip")
+        };
+        let requirements = bundle_dir.join("requirements.txt");
         let pip_out = Command::new(pip.to_string_lossy().as_ref())
-            .args(&["install", "-r", "requirements.txt"])
-            .current_dir(&mcp_dir)
+            .args(&["install", "-r"])
+            .arg(requirements.to_string_lossy().as_ref())
             .output()
             .map_err(|e| format!("Failed to install deps: {}", e))?;
         if !pip_out.status.success() {
@@ -186,7 +245,8 @@ async fn setup_python_env() -> Result<String, String> {
 
 #[tauri::command]
 async fn restart_mcp_server(app: tauri::AppHandle, _server_name: String) -> Result<bool, String> {
-    let mcp_dir = resolve_mcp_dir();
+    let bundle_dir = resolve_mcp_bundle_dir();
+    let data_dir = resolve_mcp_data_dir();
 
     // HIGH-4: Kill previous instance gracefully via Rust process handles
 
@@ -202,16 +262,17 @@ async fn restart_mcp_server(app: tauri::AppHandle, _server_name: String) -> Resu
     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
     // SECURITY (CRIT-1): Direct Command invocation — no bash -c shell interpolation.
-    let venv_python = mcp_dir.join(".venv/bin/python");
-    let server_script = mcp_dir.join("boot_server.py");
-    let log_file = std::fs::File::create(mcp_dir.join("mcp_engine.log"))
+    // Read scripts from BUNDLE (read-only), use venv + logs from DATA (writable)
+    let venv_python = resolve_venv_python(&data_dir, &bundle_dir);
+    let server_script = bundle_dir.join("boot_server.py");
+    let log_file = std::fs::File::create(data_dir.join("mcp_engine.log"))
         .map_err(|e| format!("Failed to create log file: {}", e))?;
     let err_file = log_file.try_clone()
         .map_err(|e| format!("Failed to clone log handle: {}", e))?;
 
     let mut command = std::process::Command::new(venv_python.to_string_lossy().as_ref());
     command.arg(server_script.to_string_lossy().as_ref())
-        .current_dir(&mcp_dir)
+        .current_dir(&bundle_dir)
         .stdout(std::process::Stdio::from(log_file))
         .stderr(std::process::Stdio::from(err_file));
 
@@ -371,30 +432,32 @@ async fn stop_acestep_server(app: tauri::AppHandle) -> Result<serde_json::Value,
 
 #[tauri::command]
 async fn get_system_ram() -> Result<serde_json::Value, String> {
-    // macOS: use sysctl for total RAM and vm_stat for available
+    let (total_gb, available_gb) = get_ram_info()?;
+    Ok(serde_json::json!({
+        "total_gb": (total_gb * 10.0).round() / 10.0,
+        "available_gb": (available_gb * 10.0).round() / 10.0,
+        "acestep_safe": available_gb >= 4.0,
+        "ollama_running": available_gb >= 2.0
+    }))
+}
+
+#[cfg(target_os = "macos")]
+fn get_ram_info() -> Result<(f64, f64), String> {
     let total_output = std::process::Command::new("sysctl")
         .args(&["-n", "hw.memsize"])
         .output()
         .map_err(|e| format!("Failed to read RAM: {}", e))?;
-
-    let total_bytes: u64 = String::from_utf8_lossy(&total_output.stdout)
-        .trim()
-        .parse()
-        .unwrap_or(0);
+    let total_bytes: u64 = String::from_utf8_lossy(&total_output.stdout).trim().parse().unwrap_or(0);
     let total_gb = total_bytes as f64 / (1024.0 * 1024.0 * 1024.0);
 
-    // Get available memory from vm_stat
     let vm_output = std::process::Command::new("vm_stat")
         .output()
         .map_err(|e| format!("Failed to read vm_stat: {}", e))?;
-
     let vm_str = String::from_utf8_lossy(&vm_output.stdout);
-    let page_size: u64 = 16384; // macOS ARM64 uses 16K pages
-
+    let page_size: u64 = 16384;
     let mut free_pages: u64 = 0;
     let mut inactive_pages: u64 = 0;
     let mut purgeable_pages: u64 = 0;
-
     for line in vm_str.lines() {
         if line.contains("Pages free:") {
             free_pages = line.split(':').last().unwrap_or("0").trim().trim_end_matches('.').parse().unwrap_or(0);
@@ -404,16 +467,45 @@ async fn get_system_ram() -> Result<serde_json::Value, String> {
             purgeable_pages = line.split(':').last().unwrap_or("0").trim().trim_end_matches('.').parse().unwrap_or(0);
         }
     }
-
     let available_bytes = (free_pages + inactive_pages + purgeable_pages) * page_size;
     let available_gb = available_bytes as f64 / (1024.0 * 1024.0 * 1024.0);
+    Ok((total_gb, available_gb))
+}
 
-    Ok(serde_json::json!({
-        "total_gb": (total_gb * 10.0).round() / 10.0,
-        "available_gb": (available_gb * 10.0).round() / 10.0,
-        "acestep_safe": available_gb >= 4.0,
-        "ollama_running": available_gb >= 2.0
-    }))
+#[cfg(target_os = "linux")]
+fn get_ram_info() -> Result<(f64, f64), String> {
+    let meminfo = std::fs::read_to_string("/proc/meminfo")
+        .map_err(|e| format!("Failed to read /proc/meminfo: {}", e))?;
+    let mut total_kb: u64 = 0;
+    let mut available_kb: u64 = 0;
+    for line in meminfo.lines() {
+        if line.starts_with("MemTotal:") {
+            total_kb = line.split_whitespace().nth(1).unwrap_or("0").parse().unwrap_or(0);
+        } else if line.starts_with("MemAvailable:") {
+            available_kb = line.split_whitespace().nth(1).unwrap_or("0").parse().unwrap_or(0);
+        }
+    }
+    Ok((total_kb as f64 / (1024.0 * 1024.0), available_kb as f64 / (1024.0 * 1024.0)))
+}
+
+#[cfg(target_os = "windows")]
+fn get_ram_info() -> Result<(f64, f64), String> {
+    // Windows fallback: use wmic (available on all Windows versions)
+    let output = std::process::Command::new("wmic")
+        .args(&["OS", "get", "TotalVisibleMemorySize,FreePhysicalMemory", "/format:list"])
+        .output()
+        .map_err(|e| format!("Failed to query RAM: {}", e))?;
+    let out_str = String::from_utf8_lossy(&output.stdout);
+    let mut total_kb: u64 = 0;
+    let mut free_kb: u64 = 0;
+    for line in out_str.lines() {
+        if line.starts_with("TotalVisibleMemorySize=") {
+            total_kb = line.split('=').last().unwrap_or("0").trim().parse().unwrap_or(0);
+        } else if line.starts_with("FreePhysicalMemory=") {
+            free_kb = line.split('=').last().unwrap_or("0").trim().parse().unwrap_or(0);
+        }
+    }
+    Ok((total_kb as f64 / (1024.0 * 1024.0), free_kb as f64 / (1024.0 * 1024.0)))
 }
 
 #[tauri::command]
@@ -441,18 +533,16 @@ async fn execute_mcp_tool(app_handle: tauri::AppHandle, _server_name: String, to
     if !allowed_tools.contains(&tool_name.as_str()) {
         return Err(format!("Security: Tool execution for '{}' is unauthorized.", tool_name));
     }
-    let mcp_dir = resolve_mcp_dir();
+    let bundle_dir = resolve_mcp_bundle_dir();
+    let data_dir = resolve_mcp_data_dir();
     
-    // Check both common venv directory names (.venv/ first — has compiled Nuitka modules)
-    let venv_python = {
-        let p1 = mcp_dir.join(".venv/bin/python");
-        let p2 = mcp_dir.join("venv/bin/python");
-        if p1.exists() { p1 } else if p2.exists() { p2 } else { std::path::PathBuf::from("python3") }
-    };
+    // Check writable data dir FIRST for venv, then bundle dir, then system fallback
+    let venv_python = resolve_venv_python(&data_dir, &bundle_dir);
 
     // FAST PATH: 3D generation bypasses heavy server.py import chain
+    // Scripts are always read from the BUNDLE dir (read-only)
     let (script_path, payload) = if tool_name == "image_to_3d" || tool_name == "generate_3d_object" {
-        let script = mcp_dir.join("boot_3d.py");
+        let script = bundle_dir.join("boot_3d.py");
         
         let mut resolved_path = "";
         if let Some(p) = args.get("image_path").and_then(|v| v.as_str()) { resolved_path = p; }
@@ -470,7 +560,7 @@ async fn execute_mcp_tool(app_handle: tauri::AppHandle, _server_name: String, to
         }).to_string();
         (script, p)
     } else {
-        let script = mcp_dir.join("execute_tool.py");
+        let script = bundle_dir.join("execute_tool.py");
         let p = serde_json::json!({
             "tool_name": tool_name,
             "args": args
@@ -493,6 +583,7 @@ async fn execute_mcp_tool(app_handle: tauri::AppHandle, _server_name: String, to
     }
 
     command.arg(script_path.to_string_lossy().as_ref())
+        .current_dir(&bundle_dir)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());

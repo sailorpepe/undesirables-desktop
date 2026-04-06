@@ -36,9 +36,6 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "externalBin": [
-      "binaries/server"
-    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -65,6 +62,9 @@
     },
     "iOS": {
       "infoPlist": "Info.plist"
+    },
+    "resources": {
+      "mcp-dist/**/*": "undesirables-mcp-server"
     }
   },
   "plugins": {
