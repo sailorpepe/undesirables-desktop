@@ -37,17 +37,18 @@ rustup default 1.88.0
 echo [2/8] Installing Node.js 20...
 winget install --id OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements -e
 
-echo [3/8] Installing Python 3.13...
-winget install --id Python.Python.3.13 --accept-source-agreements --accept-package-agreements -e
+:: Python 3.12 (NOT 3.13 — Kokoro TTS requires Python <3.13)
+echo [3/8] Installing Python 3.12...
+winget install --id Python.Python.3.12 --accept-source-agreements --accept-package-agreements -e
 
 echo [4/8] Installing Git...
 winget install --id Git.Git --accept-source-agreements --accept-package-agreements -e
 
-:: Refresh PATH
+:: Refresh PATH (Python 3.12, not 3.13)
 set PATH=%USERPROFILE%\.cargo\bin;%PATH%
 set PATH=%PROGRAMFILES%\nodejs;%PATH%
-set PATH=%LOCALAPPDATA%\Programs\Python\Python313;%PATH%
-set PATH=%LOCALAPPDATA%\Programs\Python\Python313\Scripts;%PATH%
+set PATH=%LOCALAPPDATA%\Programs\Python\Python312;%PATH%
+set PATH=%LOCALAPPDATA%\Programs\Python\Python312\Scripts;%PATH%
 set PATH=%PROGRAMFILES%\Git\bin;%PATH%
 
 :: ================================================================
@@ -56,6 +57,16 @@ set PATH=%PROGRAMFILES%\Git\bin;%PATH%
 :: is too deep. Using D:\undsr-build\ instead.
 :: ================================================================
 echo [5/8] Setting up build directory...
+
+:: FIX: Mark D: drive repos as safe (Windows D: doesn't record ownership)
+git config --global --add safe.directory D:/undsr-build/mcp-server 2>nul
+git config --global --add safe.directory D:/undsr-build/desktop 2>nul
+
+:: FIX: Clean up old v2 build to free disk space
+if exist "%USERPROFILE%\Desktop\undesirables-build" (
+    echo   Removing old v2 build to free disk space...
+    rmdir /s /q "%USERPROFILE%\Desktop\undesirables-build"
+)
 
 :: Try D: first (common secondary drive), fall back to C:\undsr-build
 if exist D:\ (
