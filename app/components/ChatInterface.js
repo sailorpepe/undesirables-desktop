@@ -354,8 +354,8 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
     return () => window.removeEventListener('keydown', handleGlobalKey);
   }, []);
 
-  const synthesizeAgentVoice = (textBlock, senderOverride = null) => {
-    if (isMuted || !synthRef.current || !textBlock) return;
+  const synthesizeAgentVoice = async (textBlock, senderOverride = null) => {
+    if (isMuted || !textBlock) return;
     
     // HARDWARE MUTE LOCK (For Automation Scripts & Pipelines)
     if (window.__muteAgentNextMessage) {
@@ -363,8 +363,76 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
       return;
     }
 
+    // Prevent AI from reading massive code blocks aloud
+    let sanitizedTTS = textBlock.replace(/```[\s\S]*?(?:```|$)/g, ' [System architecture drafted] ');
+    sanitizedTTS = sanitizedTTS.replace(/\[\s*\{[\s\S]*?\}\s*\]/g, ' [Data structure processed] ');
+    const codeFailsafe = sanitizedTTS.search(/\n\s*(const |let |var |function |import |require\(|def |class )/);
+    if (codeFailsafe > 0) {
+      sanitizedTTS = sanitizedTTS.substring(0, codeFailsafe) + ' [Pipeline generation complete.] ';
+    }
+    if (sanitizedTTS.length > 400) {
+      sanitizedTTS = sanitizedTTS.substring(0, 400) + "... [Remaining data attached].";
+    }
+    // Clean markdown
+    sanitizedTTS = sanitizedTTS.replace(/[#*`_[\]>🐸]/g, '').trim();
+    if (!sanitizedTTS) return;
+
+    // Get the soul's personality traits for voice mapping
+    const traits = parseSoulTraits();
+    const O = Number(traits.openness) || 50;
+    const C = Number(traits.conscientiousness) || 50;
+    const E = Number(traits.extraversion) || 50;
+    const A = Number(traits.agreeableness) || 50;
+    const N = Number(traits.neuroticism) || 50;
+
+    // === TRY KOKORO FIRST (Natural TTS via MCP) ===
+    // First call is slow (~30s cold start). After that, ~1.5s per utterance.
     try {
-      // Cancel any queued speech + clear previous heartbeat
+      const { invoke } = await import('@tauri-apps/api/core');
+      const { convertFileSrc } = await import('@tauri-apps/api/core');
+      
+      const mcpResult = await Promise.race([
+        invoke('execute_mcp_tool', {
+          serverName: 'undesirables-mcp-server',
+          toolName: 'soul_speak',
+          args: {
+            text: sanitizedTTS,
+            soul_openness: O,
+            soul_conscientiousness: C,
+            soul_extraversion: E,
+            soul_agreeableness: A,
+            soul_neuroticism: N,
+          }
+        }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Kokoro timeout (30s)')), 30000))
+      ]);
+
+      const result = typeof mcpResult === 'string' ? JSON.parse(mcpResult) : mcpResult;
+      
+      if (result && result.status === 'success' && result.path) {
+        // Play the Kokoro WAV file via HTML5 Audio
+        const audioSrc = convertFileSrc(result.path);
+        const audio = new Audio(audioSrc);
+        audio.volume = Math.min(1.0, Math.max(0.55, 0.65 + (O / 100 * 0.30)));
+        
+        audio.onplay = () => {
+          window.__TTS_IMPULSE__ = 2.0; // Visual feedback
+        };
+        audio.onended = () => {
+          window.__TTS_IMPULSE__ = 0;
+        };
+        
+        await audio.play();
+        console.log('[TTS] Kokoro voice:', result.voice_preset?.voice, 'pitch:', result.voice_preset?.pitch_semitones);
+        return; // Kokoro succeeded — skip WebKit
+      }
+    } catch (kokoroErr) {
+      console.warn('[TTS] Kokoro unavailable, falling back to WebKit:', kokoroErr.message);
+    }
+
+    // === FALLBACK: WebKit speechSynthesis ===
+    try {
+      if (!synthRef.current) return;
       synthRef.current.cancel();
       if (ttsHeartbeatRef.current) {
         clearInterval(ttsHeartbeatRef.current);
@@ -375,92 +443,10 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
       if (!voices || voices.length === 0) return;
       
       const primaryVoice = voices.find(v => v.name === 'Samantha' || v.name === 'Alex' || v.name === 'Daniel' || v.name === 'Karen') || voices[0];
-      // Exclude only genuinely old-man voices — keep robotic/novelty (they're cool)
       const OLD_MAN_VOICES = new Set(['Fred', 'Ralph', 'Agnes']);
       const NOVELTY_VOICES = new Set(['Zarvox', 'Trinoids', 'Bells', 'Bubbles', 'Cellos', 'Whisper', 'Organ', 'Bad News', 'Good News', 'Bahh', 'Boing', 'Wobble', 'Jester', 'Albert', 'Deranged', 'Hysterical']);
       const allVoices = voices.filter(v => Boolean(v.lang) && v.lang.startsWith('en-') && !OLD_MAN_VOICES.has(v.name.split(' ')[0]));
       
-      // Determine the target soul for voice binding
-      let targetName = senderOverride || dynamicConfig.name || 'Host';
-      let targetTraits = parseSoulTraits(); 
-      let voiceMod = 0;
-      
-      // Prevent AI from reading massive code blocks aloud or droning on endlessly
-      let sanitizedTTS = textBlock.replace(/```[\s\S]*?(?:```|$)/g, ' [System architecture drafted] ');
-      
-      // Silence raw JSON arrays from Receipt Scanner so it doesn't sing the brackets
-      sanitizedTTS = sanitizedTTS.replace(/\[\s*\{[\s\S]*?\}\s*\]/g, ' [Data structure processed and rendered in Matrix] ');
-      
-      // Failsafe: if the LLM didn't use backticks, aggressively look for code syntax on new lines and truncate
-      const codeFailsafe = sanitizedTTS.search(/\n\s*(const |let |var |function |import |require\(|def |class )/);
-      if (codeFailsafe > 0) {
-        sanitizedTTS = sanitizedTTS.substring(0, codeFailsafe) + ' [Pipeline generation complete. Action recorded.] ';
-      }
-
-      if (sanitizedTTS.length > 400) {
-        sanitizedTTS = sanitizedTTS.substring(0, 400) + "... [I have attached the remaining structural data].";
-      }
-
-      // Clean all lines and concatenate into a SINGLE utterance
-      const lines = sanitizedTTS.split('\n').filter(l => l.trim().length > 0);
-      let allSpeechParts = [];
-      
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        
-        let speechText = line.replace(/[#*`_[\]>🐸]/g, '').trim();
-        
-        // Multi-Soul Split Detection
-        const rawColonSplit = line.split(':');
-        if (rawColonSplit.length > 1 && rawColonSplit[0].length < 80) {
-          const prefix = rawColonSplit[0];
-          const potentialIdx = councilSlots.findIndex(c => prefix.includes(c.name) || prefix.includes(`Undesirable #${c.id}`) || prefix.includes(`Undesirable ${c.id}`));
-          
-          if (potentialIdx !== -1) {
-            targetName = councilSlots[potentialIdx].name;
-            targetTraits = councilSlots[potentialIdx].traits || {};
-            speechText = rawColonSplit.slice(1).join(':').replace(/[#*`_[\]>🐸]/g, '').trim();
-            voiceMod = potentialIdx + 1;
-          } else if (prefix.includes(targetName)) {
-            speechText = rawColonSplit.slice(1).join(':').replace(/[#*`_[\]>🐸]/g, '').trim();
-          }
-        }
-        
-        if (speechText) allSpeechParts.push(speechText);
-      }
-      
-      if (allSpeechParts.length === 0) return;
-      let fullSpeech = allSpeechParts.join('. ');
-
-      const O = (Number(targetTraits.openness) || 50) / 100;
-      const C = (Number(targetTraits.conscientiousness) || 50) / 100;
-      const E = (Number(targetTraits.extraversion) || 50) / 100;
-      const A = (Number(targetTraits.agreeableness) || 50) / 100;
-      const N = (Number(targetTraits.neuroticism) || 50) / 100;
-
-      // === OCEAN → PROSODY MAPPING ===
-      // Conscientiousness → Punctuation strictness
-      if (C < 0.4) {
-        fullSpeech = fullSpeech.replace(/,/g, ''); // Fast, breathless stream
-      } else if (C > 0.7) {
-        fullSpeech = fullSpeech.replace(/\./g, ',.'); // Macro-pauses at sentence ends
-      }
-      
-      // Neuroticism → Random comma injection (stuttering/hesitation)
-      if (N > 0.65) {
-        const words = fullSpeech.split(' ');
-        fullSpeech = words.map(w => Math.random() < 0.12 ? w + ',' : w).join(' ');
-      }
-
-      // Truncate to prevent TTS buffer overflow
-      if (fullSpeech.length > 800) {
-        fullSpeech = fullSpeech.slice(0, 800) + '...';
-      }
-
-      const utterThis = new SpeechSynthesisUtterance(fullSpeech);
-
-      // === VOICE ACTOR SELECTION ===
-      // Agreeableness drives voice category: Low A → novelty/abrasive, High A → natural/smooth
       const uniqueVoices = [];
       const seen = new Set();
       for (const v of allVoices) {
@@ -468,55 +454,29 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
         if (!seen.has(baseName)) { seen.add(baseName); uniqueVoices.push(v); }
       }
       
+      // Select voice based on traits
       let selectedVoice = primaryVoice;
-      let isNoveltyVoice = false;
-      
+      const psychHash = Math.abs(Math.floor((E/100 + N/100 * 2 + C/100) * 100) + (senderOverride || '').length * 13);
       if (uniqueVoices.length > 0) {
-        if (A < 0.35) {
-          // Low agreeableness → prefer novelty/robotic voices
+        if (A < 35) {
           const novelty = uniqueVoices.filter(v => NOVELTY_VOICES.has(v.name.split(' ')[0]));
-          if (novelty.length > 0) {
-            const psychHash = Math.abs(Math.floor((E + N * 2 + C) * 100) + targetName.length * 13 + (voiceMod * 17));
-            selectedVoice = novelty[psychHash % novelty.length];
-            isNoveltyVoice = true;
-          } else {
-            const psychHash = Math.abs(Math.floor((E + N * 2 + C) * 100) + targetName.length * 13 + (voiceMod * 17));
-            selectedVoice = uniqueVoices[psychHash % uniqueVoices.length];
-          }
+          selectedVoice = novelty.length > 0 ? novelty[psychHash % novelty.length] : uniqueVoices[psychHash % uniqueVoices.length];
         } else {
-          // Normal/high agreeableness → prefer natural voices
           const natural = uniqueVoices.filter(v => !NOVELTY_VOICES.has(v.name.split(' ')[0]));
           const pool = natural.length > 0 ? natural : uniqueVoices;
-          const psychHash = Math.abs(Math.floor((E + N * 2 + C) * 100) + targetName.length * 13 + (voiceMod * 17));
           selectedVoice = pool[psychHash % pool.length];
         }
       }
+
+      if (sanitizedTTS.length > 800) sanitizedTTS = sanitizedTTS.slice(0, 800) + '...';
       
+      const utterThis = new SpeechSynthesisUtterance(sanitizedTTS);
       utterThis.voice = selectedVoice;
-      
-      // === ASYMMETRIC PITCH BOUNDARIES ===
-      // Novelty/robotic voices THRIVE on extreme pitch — natural voices break
-      const nameHash = targetName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-      const baseHashPitch = (nameHash % 100) / 100;
-      
-      let minPitch, maxPitch;
-      if (isNoveltyVoice) {
-        minPitch = 0.60; maxPitch = 1.60; // Robotic voices sound cool at extremes
-      } else {
-        minPitch = 0.90; maxPitch = 1.12; // Natural voices: tight to prevent singing
-      }
-      // Openness drives how far from center the pitch goes
-      utterThis.pitch = minPitch + (O * baseHashPitch * (maxPitch - minPitch));
-      utterThis.pitch = Math.min(maxPitch, Math.max(minPitch, utterThis.pitch));
-      
-      // Extraversion → Speech rate
-      utterThis.rate = Math.min(1.10, Math.max(0.88, 0.88 + (E * 0.22)));
+      utterThis.pitch = Math.min(1.12, Math.max(0.90, 0.90 + (O / 100 * 0.22)));
+      utterThis.rate = Math.min(1.10, Math.max(0.88, 0.88 + (E / 100 * 0.22)));
+      utterThis.volume = Math.min(1.0, Math.max(0.55, 0.65 + (O / 100 * 0.30)));
 
-      // Openness → Volume
-      utterThis.volume = Math.min(1.0, Math.max(0.55, 0.65 + (O * 0.30)));
-
-      // === WEBKIT 14-SECOND STOPPAGE HEARTBEAT ===
-      // WebKit stalls if a single utterance plays >14s. Pause/resume resets the watchdog.
+      // WebKit 14-second stoppage heartbeat
       utterThis.onstart = () => {
         if (ttsHeartbeatRef.current) clearInterval(ttsHeartbeatRef.current);
         ttsHeartbeatRef.current = setInterval(() => {
@@ -526,24 +486,14 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
           }
         }, 10000);
       };
-      
       utterThis.onend = () => { 
-        if (ttsHeartbeatRef.current) {
-          clearInterval(ttsHeartbeatRef.current);
-          ttsHeartbeatRef.current = null;
-        }
+        if (ttsHeartbeatRef.current) { clearInterval(ttsHeartbeatRef.current); ttsHeartbeatRef.current = null; }
       };
       utterThis.onerror = () => { 
-        if (ttsHeartbeatRef.current) {
-          clearInterval(ttsHeartbeatRef.current);
-          ttsHeartbeatRef.current = null;
-        }
+        if (ttsHeartbeatRef.current) { clearInterval(ttsHeartbeatRef.current); ttsHeartbeatRef.current = null; }
       };
-
       utterThis.onboundary = (evt) => {
-        if (evt.name === 'word') {
-          window.__TTS_IMPULSE__ = (window.__TTS_IMPULSE__ || 0) + 1.5;
-        }
+        if (evt.name === 'word') window.__TTS_IMPULSE__ = (window.__TTS_IMPULSE__ || 0) + 1.5;
       };
 
       synthRef.current.speak(utterThis);
@@ -589,7 +539,16 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
   };
 
   useEffect(() => {
-    import('@tauri-apps/api/core').then(core => setAssetHelper(() => core.convertFileSrc)).catch(() => {});
+    import('@tauri-apps/api/core').then(core => {
+      setAssetHelper(() => core.convertFileSrc);
+      // Pre-warm Kokoro TTS engine in background (first import takes ~30s)
+      core.invoke('execute_mcp_tool', {
+        serverName: 'undesirables-mcp-server',
+        toolName: 'get_voice_preset',
+        args: { soul_openness: 50, soul_conscientiousness: 50, soul_extraversion: 50, soul_agreeableness: 50, soul_neuroticism: 50 }
+      }).then(() => console.log('[TTS] Kokoro engine pre-warmed'))
+        .catch(() => console.log('[TTS] Kokoro warmup skipped (will try on first speak)'));
+    }).catch(() => {});
   }, []);
 
   // Fetch available Ollama models
