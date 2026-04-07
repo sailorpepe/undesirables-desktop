@@ -52,21 +52,51 @@ set PATH=%LOCALAPPDATA%\Programs\Python\Python312\Scripts;%PATH%
 set PATH=%PROGRAMFILES%\Git\bin;%PATH%
 
 :: ================================================================
-:: FIX: Use short build path to avoid Windows MAX_PATH (260 char) limit
-:: Desktop\undesirables-build\undesirables-desktop\node_modules\...
-:: is too deep. Using D:\undsr-build\ instead.
+:: STEP 5: FREE DISK SPACE (auto-cleans ALL old builds)
+:: Your D: drive ran out of space. This fixes it automatically.
 :: ================================================================
-echo [5/8] Setting up build directory...
+echo [5/9] Freeing disk space — removing ALL old build artifacts...
+
+:: Kill every known old build location
+if exist "%USERPROFILE%\Desktop\undesirables-build" (
+    echo   Deleting Desktop\undesirables-build...
+    rmdir /s /q "%USERPROFILE%\Desktop\undesirables-build"
+)
+if exist "D:\undesirables-build" (
+    echo   Deleting D:\undesirables-build (old v2 path)...
+    rmdir /s /q "D:\undesirables-build"
+)
+if exist "D:\undsr-build\desktop\node_modules" (
+    echo   Deleting old node_modules cache...
+    rmdir /s /q "D:\undsr-build\desktop\node_modules"
+)
+if exist "D:\undsr-build\desktop\src-tauri\target" (
+    echo   Deleting old Rust build cache (this frees ~2-4 GB)...
+    rmdir /s /q "D:\undsr-build\desktop\src-tauri\target"
+)
+if exist "C:\undesirables-build" (
+    echo   Deleting C:\undesirables-build...
+    rmdir /s /q "C:\undesirables-build"
+)
+
+:: Also clean npm cache (can be 1-2 GB)
+echo   Cleaning npm cache...
+call npm cache clean --force 2>nul
+
+:: Show available disk space so user can see it worked
+echo.
+echo   Disk space after cleanup:
+for /f "tokens=3" %%a in ('dir D:\ ^| findstr /c:"bytes free"') do echo   D: drive — %%a bytes free
+echo.
+
+:: ================================================================
+:: Set up clean build directory
+:: ================================================================
+echo [6/9] Setting up build directory...
 
 :: FIX: Mark D: drive repos as safe (Windows D: doesn't record ownership)
 git config --global --add safe.directory D:/undsr-build/mcp-server 2>nul
 git config --global --add safe.directory D:/undsr-build/desktop 2>nul
-
-:: FIX: Clean up old v2 build to free disk space
-if exist "%USERPROFILE%\Desktop\undesirables-build" (
-    echo   Removing old v2 build to free disk space...
-    rmdir /s /q "%USERPROFILE%\Desktop\undesirables-build"
-)
 
 :: Try D: first (common secondary drive), fall back to C:\undsr-build
 if exist D:\ (
@@ -77,6 +107,7 @@ if exist D:\ (
 
 if not exist %BUILD_ROOT% mkdir %BUILD_ROOT%
 cd /d %BUILD_ROOT%
+
 
 :: Clone or pull repos
 if exist mcp-server (
@@ -98,7 +129,7 @@ if exist desktop (
 )
 
 :: Step 3: Compile MCP server to native binaries
-echo [6/8] Compiling AI engines to native Windows binaries...
+echo [7/9] Compiling AI engines to native Windows binaries...
 cd mcp-server
 python -m venv .venv
 call .venv\Scripts\activate.bat
@@ -131,7 +162,7 @@ call deactivate
 cd ..
 
 :: Step 4: Build the Tauri desktop app
-echo [7/8] Building The Undesirables desktop app...
+echo [8/9] Building The Undesirables desktop app...
 cd desktop
 
 :: Clean stale build artifacts
@@ -154,7 +185,7 @@ if not exist node_modules\.bin\tauri.cmd (
     call npm install @tauri-apps/cli
 )
 
-echo [8/8] Running Tauri build (this takes ~10-15 minutes)...
+echo [9/9] Running Tauri build (this takes ~10-15 minutes)...
 call npx tauri build
 
 :: Check if MSI was actually created
