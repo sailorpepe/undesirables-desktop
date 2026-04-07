@@ -1206,7 +1206,7 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
     }
 
     // Only inject tool schemas if they actually requested a tool (bypasses gemma3 vision crashes)
-    const toolTriggers = ["execute", "beat sync", "banner", "clip", "extract", "produce", "generate", "create", "grade", "analyze", "psa", "card", "evaluate", "council", "invoke", "debate", "convene", "scan", "audit"];
+    const toolTriggers = ["execute", "beat sync", "banner", "clip", "extract", "produce", "generate", "create", "grade", "analyze", "psa", "card", "evaluate", "council", "invoke", "debate", "convene", "scan", "audit", "search", "look up", "lookup", "find out", "what is the price", "current price", "news about", "latest"];
     const isVisionTask = isInternalEvent && userMessage.includes("*[SYSTEM]* Vision Task:");
     const hasImages = window.__droppedImages && window.__droppedImages.length > 0;
     const visionTools = ["grade", "psa", "card", "3d"];
@@ -1598,6 +1598,21 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
                   file_paths_json: { type: "string", description: "JSON string array of absolute file paths." }
                 },
                 required: ["file_paths_json"]
+              }
+            }
+          },
+          {
+            type: "function",
+            function: {
+              name: "web_search",
+              description: "Search the web using DuckDuckGo for current information, prices, news, or any real-time data. No API key needed. Privacy-first.",
+              parameters: {
+                type: "object",
+                properties: {
+                  query: { type: "string", description: "What to search for (e.g. 'ETH price today', 'latest NFT news', 'bitcoin halving date')" },
+                  max_results: { type: "integer", description: "Max results 1-10 (default 5)" }
+                },
+                required: ["query"]
               }
             }
           }
