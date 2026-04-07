@@ -1,13 +1,13 @@
 @echo off
 :: ================================================================
-:: The Undesirables — Windows Build Script
-:: Drop this file on any Windows 10/11 PC and double-click.
+:: The Undesirables — Windows Build Script v2
+:: Drop this file on any Windows 10/11 PC and RIGHT-CLICK > Run as Administrator.
 :: It will install all dependencies and produce the .msi installer.
 :: ================================================================
 
 echo.
 echo  ╔══════════════════════════════════════════════════╗
-echo  ║   THE UNDESIRABLES — WINDOWS BUILD AUTOMATION   ║
+echo  ║   THE UNDESIRABLES — WINDOWS BUILD v2           ║
 echo  ╚══════════════════════════════════════════════════╝
 echo.
 
@@ -23,7 +23,9 @@ if %errorlevel% neq 0 (
 echo [1/7] Installing Rust...
 winget install --id Rustlang.Rustup --accept-source-agreements --accept-package-agreements -e
 call "%USERPROFILE%\.cargo\env.bat" 2>nul
-rustup default stable
+:: Pin Rust 1.88 — dependencies require it (1.85 "stable" is too old)
+rustup install 1.88.0
+rustup default 1.88.0
 
 echo [2/7] Installing Node.js 20...
 winget install --id OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements -e
@@ -41,16 +43,28 @@ set PATH=%LOCALAPPDATA%\Programs\Python\Python313;%PATH%
 set PATH=%LOCALAPPDATA%\Programs\Python\Python313\Scripts;%PATH%
 set PATH=%PROGRAMFILES%\Git\bin;%PATH%
 
-:: Step 2: Clone repos
+:: Step 2: Clone (or pull latest) repos
 echo [5/7] Cloning repositories...
 cd %USERPROFILE%\Desktop
 if not exist undesirables-build mkdir undesirables-build
 cd undesirables-build
 
-if not exist undesirables-mcp-server (
+:: If repos already exist, pull latest instead of skipping
+if exist undesirables-mcp-server (
+    echo   Updating MCP server...
+    cd undesirables-mcp-server
+    git pull origin main
+    cd ..
+) else (
     git clone https://gitlab.com/meme-merchants/undesirables-mcp-server.git
 )
-if not exist undesirables-desktop (
+
+if exist undesirables-desktop (
+    echo   Updating desktop app...
+    cd undesirables-desktop
+    git pull origin main
+    cd ..
+) else (
     git clone https://gitlab.com/meme-merchants/undesirables-desktop.git
 )
 
@@ -87,20 +101,35 @@ xcopy /E /I /Y scripts ..\undesirables-desktop\src-tauri\mcp-dist\scripts 2>nul
 call deactivate
 cd ..
 
-:: Step 4: Build Tauri
+:: Step 4: Clean Rust build cache to prevent stale artifacts
 echo [7/7] Building The Undesirables desktop app...
 cd undesirables-desktop
+echo   Cleaning previous Rust build cache...
+if exist src-tauri\target\release\bundle\msi rmdir /s /q src-tauri\target\release\bundle\msi
 call npm install
 call npx tauri build
 
-echo.
-echo  ╔══════════════════════════════════════════════════╗
-echo  ║              BUILD COMPLETE!                     ║
-echo  ╠══════════════════════════════════════════════════╣
-echo  ║  Your installer is at:                          ║
-echo  ║  src-tauri\target\release\bundle\msi\            ║
-echo  ╚══════════════════════════════════════════════════╝
-echo.
+:: Check if MSI was actually created
+if exist src-tauri\target\release\bundle\msi\*.msi (
+    echo.
+    echo  ╔══════════════════════════════════════════════════╗
+    echo  ║              BUILD COMPLETE!                     ║
+    echo  ╠══════════════════════════════════════════════════╣
+    echo  ║  Your .msi installer is ready.                  ║
+    echo  ║  Opening the folder now...                      ║
+    echo  ╚══════════════════════════════════════════════════╝
+    echo.
+    explorer src-tauri\target\release\bundle\msi
+) else (
+    echo.
+    echo  ╔══════════════════════════════════════════════════╗
+    echo  ║              BUILD FAILED                       ║
+    echo  ╠══════════════════════════════════════════════════╣
+    echo  ║  The .msi was not created.                      ║
+    echo  ║  Scroll up to see the error message.            ║
+    echo  ║  Common fix: close this window and try again.   ║
+    echo  ╚══════════════════════════════════════════════════╝
+    echo.
+)
 
-explorer src-tauri\target\release\bundle\msi
 pause
