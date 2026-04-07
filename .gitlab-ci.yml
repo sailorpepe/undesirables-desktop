@@ -36,9 +36,9 @@ build:linux:
     - curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash -
     - apt-get install -y nodejs
   script:
-    # 1. Setup Rust
+    # 1. Setup Rust (pin to 1.88+ — dependencies require it)
     - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o rustup.sh
-    - sh rustup.sh -y --default-toolchain stable
+    - sh rustup.sh -y --default-toolchain 1.88.0
     - source $HOME/.cargo/env
 
     # 2. Clone MCP server and compile proprietary modules to native C-binaries
