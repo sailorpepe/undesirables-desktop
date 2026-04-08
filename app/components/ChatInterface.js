@@ -385,9 +385,12 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
     const A = Number(traits.agreeableness) || 50;
     const N = Number(traits.neuroticism) || 50;
 
-    // === TRY KOKORO FIRST (Natural TTS via MCP) ===
-    // First call is slow (~30s cold start). After that, ~1.5s per utterance.
-    try {
+    // === KOKORO TTS DISABLED (cold start too slow — needs persistent MCP server) ===
+    // Each execute_mcp_tool spawns a new Python process that takes ~2 min to import server.py.
+    // Kokoro will be enabled once the persistent boot_server.py is used instead.
+    // For now, use WebKit voices (instant, no cold start).
+    const kokoroEnabled = false;
+    if (kokoroEnabled) {
       const { invoke } = await import('@tauri-apps/api/core');
       const { convertFileSrc } = await import('@tauri-apps/api/core');
       
@@ -426,9 +429,7 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
         console.log('[TTS] Kokoro voice:', result.voice_preset?.voice, 'pitch:', result.voice_preset?.pitch_semitones);
         return; // Kokoro succeeded — skip WebKit
       }
-    } catch (kokoroErr) {
-      console.warn('[TTS] Kokoro unavailable, falling back to WebKit:', kokoroErr.message);
-    }
+    } // end kokoroEnabled
 
     // === FALLBACK: WebKit speechSynthesis ===
     try {
@@ -541,13 +542,8 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
   useEffect(() => {
     import('@tauri-apps/api/core').then(core => {
       setAssetHelper(() => core.convertFileSrc);
-      // Pre-warm Kokoro TTS engine in background (first import takes ~30s)
-      core.invoke('execute_mcp_tool', {
-        serverName: 'undesirables-mcp-server',
-        toolName: 'get_voice_preset',
-        args: { soul_openness: 50, soul_conscientiousness: 50, soul_extraversion: 50, soul_agreeableness: 50, soul_neuroticism: 50 }
-      }).then(() => console.log('[TTS] Kokoro engine pre-warmed'))
-        .catch(() => console.log('[TTS] Kokoro warmup skipped (will try on first speak)'));
+      // Kokoro pre-warm disabled (see synthesizeAgentVoice comment)
+      // Will re-enable once persistent MCP server is implemented
     }).catch(() => {});
   }, []);
 
@@ -1363,8 +1359,9 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
         model: (isVisionTask || (ollamaMessages.length > 0 && ollamaMessages[ollamaMessages.length-1].images)) ? 'qwen2.5vl:7b' : selectedModel,
         stream: !isToolRequest,
         messages: ollamaMessages,
+        keep_alive: '30m',
         options: {
-          num_ctx: isSmallModel ? 4096 : (brainMode === 'nexus' ? 8192 : 16384),
+          num_ctx: isSmallModel ? 2048 : (brainMode === 'nexus' ? 8192 : 4096),
           temperature: parseFloat(Math.max(0.1, Math.min(2.0, soulParams.temperature + emotionDeltas.temperature_delta)).toFixed(2)),
           top_p: parseFloat(Math.max(0.1, Math.min(1.0, soulParams.top_p + emotionDeltas.top_p_delta)).toFixed(2)),
           top_k: Math.max(5, Math.min(100, soulParams.top_k + emotionDeltas.top_k_delta)),
