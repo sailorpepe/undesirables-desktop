@@ -28,10 +28,10 @@ build:linux:
     - apt-get install -y curl build-essential wget git software-properties-common
     - apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
     - apt-get install -y libssl-dev pkg-config xdg-utils
-    # Install Python 3.13 via deadsnakes PPA (Ubuntu 22.04 ships 3.10 which is too old)
+    # Install Python 3.12 via deadsnakes PPA (Kokoro TTS requires Python <3.13)
     - add-apt-repository -y ppa:deadsnakes/ppa
     - apt-get update
-    - apt-get install -y python3.13 python3.13-venv python3.13-dev
+    - apt-get install -y python3.12 python3.12-venv python3.12-dev
     # Install Node.js via nodesource
     - curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash -
     - apt-get install -y nodejs
@@ -44,7 +44,7 @@ build:linux:
     # 2. Clone MCP server and compile proprietary modules to native C-binaries
     - git clone "https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/meme-merchants/undesirables-mcp-server.git" undesirables-mcp-server
     - cd undesirables-mcp-server
-    - python3.13 -m venv .venv && source .venv/bin/activate
+    - python3.12 -m venv .venv && source .venv/bin/activate
     - pip install --upgrade pip
     - pip install nuitka ordered-set
     - pip install -r requirements.txt
