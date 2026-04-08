@@ -385,11 +385,9 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
     const A = Number(traits.agreeableness) || 50;
     const N = Number(traits.neuroticism) || 50;
 
-    // === KOKORO TTS DISABLED (cold start too slow — needs persistent MCP server) ===
-    // Each execute_mcp_tool spawns a new Python process that takes ~2 min to import server.py.
-    // Kokoro will be enabled once the persistent boot_server.py is used instead.
-    // For now, use WebKit voices (instant, no cold start).
-    const kokoroEnabled = false;
+    // === KOKORO TTS ENABLED ===
+    // Routing through the persistent MCP sidecar daemon creates instant sub-second responses.
+    const kokoroEnabled = true;
     if (kokoroEnabled) {
       const { invoke } = await import('@tauri-apps/api/core');
       const { convertFileSrc } = await import('@tauri-apps/api/core');
