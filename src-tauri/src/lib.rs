@@ -398,7 +398,7 @@ async fn restart_mcp_server(app: tauri::AppHandle, _server_name: String) -> Resu
     // SECURITY (CRIT-1): Direct Command invocation — no bash -c shell interpolation.
     // Read scripts from BUNDLE (read-only), use venv + logs from DATA (writable)
     let venv_python = resolve_venv_python(&data_dir, &bundle_dir);
-    let server_script = bundle_dir.join("boot_server.py");
+    let server_script = bundle_dir.join("http_server.py");
     let log_file = std::fs::File::create(data_dir.join("mcp_engine.log"))
         .map_err(|e| format!("Failed to create log file: {}", e))?;
     let err_file = log_file.try_clone()
@@ -673,83 +673,100 @@ async fn execute_mcp_tool(app_handle: tauri::AppHandle, _server_name: String, to
     // Check writable data dir FIRST for venv, then bundle dir, then system fallback
     let venv_python = resolve_venv_python(&data_dir, &bundle_dir);
 
-    // FAST PATH: 3D generation bypasses heavy server.py import chain
-    // Scripts are always read from the BUNDLE dir (read-only)
-    let (script_path, payload) = if tool_name == "image_to_3d" || tool_name == "generate_3d_object" {
-        let script = bundle_dir.join("boot_3d.py");
+    // FAST PATH: 3D generation bypasses heavy server.py import chain and uses isolated process
+    if tool_name == "image_to_3d" || tool_name == "generate_3d_object" {
+        let script_path = bundle_dir.join("boot_3d.py");
         
         let mut resolved_path = "";
         if let Some(p) = args.get("image_path").and_then(|v| v.as_str()) { resolved_path = p; }
         else if let Some(p) = args.get("image_url").and_then(|v| v.as_str()) { resolved_path = p; }
         else if let Some(p) = args.get("path").and_then(|v| v.as_str()) { resolved_path = p; }
         else if let Some(p) = args.get("prompt").and_then(|v| v.as_str()) { 
-            // If they called generate_3d_object and dumped the path into the prompt string
             if p.contains("/") || p.contains(".png") || p.contains(".jpg") { resolved_path = p; }
         }
 
-        let p = serde_json::json!({
+        let payload = serde_json::json!({
             "image_path": resolved_path,
             "prompt": args.get("prompt").and_then(|v| v.as_str()).unwrap_or(""),
             "steps": args.get("steps").and_then(|v| v.as_i64()).unwrap_or(4),
         }).to_string();
-        (script, p)
-    } else {
-        let script = bundle_dir.join("execute_tool.py");
-        let p = serde_json::json!({
-            "tool_name": tool_name,
-            "args": args
-        }).to_string();
-        (script, p)
-    };
 
-    let mut command = Command::new(venv_python.to_string_lossy().as_ref());
-    
-    // Phase 5 Deep Think Fix: Purge LLM Trust in Rust backend.
-    // Fetch eBay Oracle secrets strictly via local filesystem tauri_plugin_store
-    // completely isolating them from the LLM's payload.
-    if let Ok(store) = app_handle.store("credentials.json") {
-        if let Some(val) = store.get("undesirables_ebay_app_id") {
-            if let Some(app_id) = val.as_str() { command.env("EBAY_APP_ID", app_id); }
+        let mut command = Command::new(venv_python.to_string_lossy().as_ref());
+        command.arg(script_path.to_string_lossy().as_ref())
+            .current_dir(&bundle_dir)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+            
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            command.process_group(0);
         }
-        if let Some(val) = store.get("undesirables_ebay_client_secret") {
-            if let Some(client_secret) = val.as_str() { command.env("EBAY_CLIENT_SECRET", client_secret); }
-        }
-    }
-
-    command.arg(script_path.to_string_lossy().as_ref())
-        .current_dir(&bundle_dir)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
         
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        command.process_group(0);
+        let mut child = command.spawn().map_err(|e| format!("Failed to spawn 3D tools executor: {}", e))?;
+
+        if let Some(mut stdin) = child.stdin.take() {
+            stdin.write_all(payload.as_bytes()).map_err(|e| e.to_string())?;
+        }
+
+        let output = child.wait_with_output().map_err(|e| e.to_string())?;
+        let output_str = String::from_utf8_lossy(&output.stdout);
+        let err_str = String::from_utf8_lossy(&output.stderr);
+        
+        if !output.status.success() && output_str.trim().is_empty() {
+            return Err(format!("Python execution failed: {}", err_str));
+        }
+
+        match serde_json::from_str::<serde_json::Value>(&output_str) {
+            Ok(json) => return Ok(json),
+            Err(_) => return Ok(serde_json::json!({
+                "result": output_str.trim().to_string()
+            }))
+        }
+    }
+
+    // PERSISTENT MCP DAEMON PATH: Use the persistent sidecar HTTP server for all standard tools
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(300)) // 5 minute max timeout for heavy tasks
+        .build()
+        .map_err(|e| format!("Reqwest client error: {}", e))?;
+        
+    let payload = serde_json::json!({
+        "tool_name": tool_name.clone(),
+        "args": args
+    });
+    
+    // Check if MCP Server is running, if not auto-start
+    let is_running = client.get("http://127.0.0.1:8740").send().await.is_ok();
+    if !is_running {
+        // Try restarting the MCP server daemon if it was killed or never booted
+        let _ = restart_mcp_server(app_handle.clone(), "auto_recover".to_string()).await;
+        // Wait for it to boot and load ML models (~30 seconds)
+        for _ in 0..15 {
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            if client.get("http://127.0.0.1:8740").send().await.is_ok() {
+                break; // Server is up!
+            }
+        }
     }
     
-    let mut child = command.spawn().map_err(|e| format!("Failed to spawn Python executor: {}", e))?;
-
-    if let Some(mut stdin) = child.stdin.take() {
-        stdin.write_all(payload.as_bytes()).map_err(|e| e.to_string())?;
-    }
-
-    let output = child.wait_with_output().map_err(|e| e.to_string())?;
-    let output_str = String::from_utf8_lossy(&output.stdout);
-    let err_str = String::from_utf8_lossy(&output.stderr);
+    let response = client.post("http://127.0.0.1:8740")
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to reach persistent MCP server (is it running?): {}", e))?;
+        
+    let status_code = response.status();
+    let text_content = response.text().await.unwrap_or_default();
     
-    // Only surface stderr when the process FAILED and stdout is empty.
-    // pymatting's C-level Cholesky solver dumps PERFORMANCE WARNINGs to stderr
-    // via the OS pipe — these must NEVER pollute the MCP IPC payload.
-    if !output.status.success() && output_str.trim().is_empty() {
-        return Err(format!("Python execution failed: {}", err_str));
+    if !status_code.is_success() {
+        return Err(format!("MCP HTTP {} Error: {}", status_code, text_content));
     }
-
-    match serde_json::from_str::<serde_json::Value>(&output_str) {
+    
+    match serde_json::from_str::<serde_json::Value>(&text_content) {
         Ok(json) => Ok(json),
-        Err(_) => Ok(serde_json::json!({
-            "result": output_str.trim().to_string()
-        }))
+        Err(_) => Ok(serde_json::json!({ "result": text_content.trim().to_string() }))
     }
 }
 
