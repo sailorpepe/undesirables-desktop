@@ -28,17 +28,19 @@ This is **not** a chatbot wrapper. It's a full AI workstation that runs natively
 
 ---
 
-## 📦 Installation (Download Pre-Built Release)
+## 📦 Download
 
-If you just want to **use the app**, download the latest release for your platform:
+<p align="center">
+  <a href="https://gitlab.com/meme-merchants/undesirables-desktop/-/releases/permalink/latest/downloads/The_Undesirables.dmg"><img src="https://img.shields.io/badge/🍎_macOS-Download_.dmg-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS" /></a>
+  &nbsp;
+  <a href="https://gitlab.com/meme-merchants/undesirables-desktop/-/releases/permalink/latest/downloads/The_Undesirables.AppImage"><img src="https://img.shields.io/badge/🐧_Linux-Download_.AppImage-FCC624?style=for-the-badge&logo=linux&logoColor=black" alt="Download for Linux" /></a>
+  &nbsp;
+  <a href="https://gitlab.com/meme-merchants/undesirables-desktop/-/releases/permalink/latest/downloads/The_Undesirables.msi"><img src="https://img.shields.io/badge/🪟_Windows-Download_.msi-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Download for Windows" /></a>
+</p>
 
-👉 **[Download from GitLab Releases](https://gitlab.com/meme-merchants/undesirables-desktop/-/releases)**
-
-| Platform | File | How to Install |
-|---|---|---|
-| **macOS** (Apple Silicon) | `.dmg` | Open DMG → drag to Applications |
-| **Linux** (x86_64) | `.AppImage` | `chmod +x *.AppImage` → double-click |
-| **Windows** (x64) | `.msi` | Double-click → follow installer |
+<p align="center">
+  <a href="https://gitlab.com/meme-merchants/undesirables-desktop/-/releases">View all releases →</a>
+</p>
 
 ---
 
