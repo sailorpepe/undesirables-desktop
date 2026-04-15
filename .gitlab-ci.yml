@@ -95,10 +95,16 @@ publish-release:
       Fully sandboxed local execution — no cloud telemetry.
 
       **Downloads:**
-      - Linux (x86_64): `.AppImage` portable binary + `.deb` installer
-
-      macOS `.dmg` available in the Assets section (built and uploaded manually).
+      - 🐧 Linux (x86_64): `.AppImage` portable + `.deb` installer
+      - 🍎 macOS: `.dmg` (uploaded manually — no macOS CI runners on free tier)
+      - 🪟 Windows: `.msi` (uploaded manually)
     assets:
       links:
-        - name: "Linux AppImage (.AppImage)"
-          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_TAG}/download?job=build:linux"
+        - name: "The_Undesirables.AppImage"
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_TAG}/raw/src-tauri/target/release/bundle/appimage/The_Undesirables.AppImage?job=build:linux"
+          filepath: "/The_Undesirables.AppImage"
+          link_type: "package"
+        - name: "The_Undesirables.deb"
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_TAG}/raw/src-tauri/target/release/bundle/deb/the-undesirables_${CI_COMMIT_TAG}_amd64.deb?job=build:linux"
+          filepath: "/The_Undesirables.deb"
+          link_type: "package"
