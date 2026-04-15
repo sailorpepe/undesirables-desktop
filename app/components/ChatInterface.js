@@ -405,7 +405,7 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
             soul_neuroticism: N,
           }
         }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Kokoro timeout (30s)')), 30000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Kokoro timeout (90s)')), 90000))
       ]);
 
       const result = typeof mcpResult === 'string' ? JSON.parse(mcpResult) : mcpResult;
@@ -544,6 +544,33 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
       // Will re-enable once persistent MCP server is implemented
     }).catch(() => {});
   }, []);
+
+  // Auto-Profile Hardware for Gemma 4 Tier Context
+  useEffect(() => {
+    const profileHardware = async () => {
+      try {
+        const hasProfiled = localStorage.getItem('undesirables_hardware_profiled');
+        if (!hasProfiled) {
+          const { invoke } = await import('@tauri-apps/api/core');
+          const ramInfo = await invoke('get_system_ram');
+          let recommendedModel = DEFAULT_MODEL;
+          
+          if (ramInfo.hardware_tier === 1) recommendedModel = 'gemma4:2b';
+          else if (ramInfo.hardware_tier === 2) recommendedModel = 'gemma4:9b';
+          else if (ramInfo.hardware_tier === 3) recommendedModel = 'gemma-4-26b-a4b-it';
+          
+          console.log(`[HARDWARE PROFILER] Tier ${ramInfo.hardware_tier} detected (Total GB: ${ramInfo.total_gb}). Selected: ${recommendedModel}`);
+          setSelectedModel(recommendedModel);
+          localStorage.setItem('undesirables_model', recommendedModel);
+          localStorage.setItem('undesirables_hardware_profiled', 'true');
+        }
+      } catch (err) {
+        console.error("[HARDWARE PROFILER] Failed:", err);
+      }
+    };
+    if (typeof window !== 'undefined') profileHardware();
+  }, []);
+
 
   // Fetch available Ollama models
   useEffect(() => {
