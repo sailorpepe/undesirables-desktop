@@ -241,10 +241,14 @@ async fn install_dependency(tool: String) -> Result<String, String> {
 
     let (program, args): (&str, Vec<&str>) = match (tool.as_str(), os) {
         ("ollama", "macos")   => (brew_path, vec!["install", "ollama"]),
-        ("ollama", "linux")   => ("sh", vec!["-c", "curl -fsSL https://ollama.com/install.sh | sh"]),
+        ("ollama", "linux")   => {
+            // Ollama install.sh requires root. Use pkexec for a native GUI password prompt.
+            // First download the script, then execute it with elevated privileges.
+            ("sh", vec!["-c", "curl -fsSL https://ollama.com/install.sh -o /tmp/ollama_install.sh && pkexec sh /tmp/ollama_install.sh && rm -f /tmp/ollama_install.sh"])
+        },
         ("ollama", "windows") => ("winget", vec!["install", "--id", "Ollama.Ollama", "--accept-source-agreements", "--accept-package-agreements"]),
         ("ffmpeg", "macos")   => (brew_path, vec!["install", "ffmpeg"]),
-        ("ffmpeg", "linux")   => ("sh", vec!["-c", "sudo apt-get install -y ffmpeg || sudo dnf install -y ffmpeg"]),
+        ("ffmpeg", "linux")   => ("pkexec", vec!["sh", "-c", "apt-get install -y ffmpeg || dnf install -y ffmpeg || pacman -S --noconfirm ffmpeg"]),
         ("ffmpeg", "windows") => ("winget", vec!["install", "--id", "Gyan.FFmpeg", "--accept-source-agreements", "--accept-package-agreements"]),
         _ => return Err(format!("Security: '{}' is not an installable dependency on {}.", tool, os)),
     };
@@ -567,9 +571,18 @@ async fn stop_acestep_server(app: tauri::AppHandle) -> Result<serde_json::Value,
 #[tauri::command]
 async fn get_system_ram() -> Result<serde_json::Value, String> {
     let (total_gb, available_gb) = get_ram_info()?;
+    let tier = if total_gb < 12.0 {
+        1
+    } else if total_gb <= 26.0 {
+        2
+    } else {
+        3
+    };
+
     Ok(serde_json::json!({
         "total_gb": (total_gb * 10.0).round() / 10.0,
         "available_gb": (available_gb * 10.0).round() / 10.0,
+        "hardware_tier": tier,
         "acestep_safe": available_gb >= 4.0,
         "ollama_running": available_gb >= 2.0
     }))
