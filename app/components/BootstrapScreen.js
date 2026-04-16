@@ -188,6 +188,22 @@ export default function BootstrapScreen({ onReady }) {
             <p className="text-[#e0faec]/30 text-xs mt-1">Engaging matrix...</p>
           </div>
         )}
+
+        {/* EMERGENCY OVERRIDE TO UNFREEZE LINUX BOOT LOOP */}
+        {stage !== 'ready' && (
+          <div className="mt-8 text-center border-t border-[#e0faec]/10 pt-4">
+            <button 
+              onClick={() => {
+                console.warn('Emergency Override Triggered');
+                setStage('ready');
+                onReady();
+              }}
+              className="text-[#e0faec]/30 hover:text-red-400 font-mono text-[10px] tracking-widest uppercase transition-colors"
+            >
+              System Unresponsive? Emergency Skip »
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
