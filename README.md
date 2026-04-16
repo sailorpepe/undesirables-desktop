@@ -28,25 +28,23 @@ This is **not** a chatbot wrapper. It's a full AI workstation that runs natively
 
 ---
 
-## 📦 Download
+## 📦 Download — v1.2.1
 
 | Platform | Download | Install |
 |----------|----------|---------|
-| 🍎 **macOS** (Apple Silicon) | [**Download .dmg**](https://gitlab.com/meme-merchants/undesirables-desktop/-/releases) | Open DMG → drag to Applications |
-| 🐧 **Linux** (x86_64) | [**Download .AppImage**](https://gitlab.com/meme-merchants/undesirables-desktop/-/releases) | `chmod +x *.AppImage` → double-click |
-| 🪟 **Windows** (x64) | [**Download .msi**](https://gitlab.com/meme-merchants/undesirables-desktop/-/releases) | Double-click → follow installer |
+| 🍎 **macOS** (Apple Silicon) | [**Download .dmg**](https://gitlab.com/meme-merchants/undesirables-desktop/-/releases/v1.2.1/downloads/The_Undesirables_1.2.1_aarch64_signed.dmg) | Open DMG → drag to Applications |
+| 🐧 **Linux** (Ubuntu/Debian x86_64) | [**Download .deb**](https://gitlab.com/meme-merchants/undesirables-desktop/-/releases/v1.2.1/downloads/The_Undesirables_1.2.1_amd64.deb) | `sudo dpkg -i The_Undesirables_1.2.1_amd64.deb` |
+| 🪟 **Windows** (x64) | [**Download .exe**](https://gitlab.com/meme-merchants/undesirables-desktop/-/releases/v1.2.1/downloads/The_Undesirables_1.2.1_x64-setup.exe) | Double-click → follow installer |
+
+> **All releases:** [gitlab.com/meme-merchants/undesirables-desktop/-/releases](https://gitlab.com/meme-merchants/undesirables-desktop/-/releases)
 
 ---
 
-### ⚠️ macOS: "App is damaged" or moves to Trash
+### ✅ macOS: Signed & Notarized
 
-macOS blocks unsigned apps by default. This is normal for indie software. Fix it:
+The macOS build is **code-signed and notarized by Apple** under `Developer ID Application: The Undesirables LLC`. Double-click the `.dmg` and it should open without warnings.
 
-**Option 1 — Right-click to open:**
-1. Right-click (or Control+click) on `The_Undesirables.app`
-2. Click **Open** → click **Open** again on the warning
-
-**Option 2 — Remove quarantine flag (if Option 1 doesn't work):**
+If you still see a quarantine warning (e.g., older macOS versions), fix it:
 ```bash
 xattr -cr /Applications/The_Undesirables.app
 ```
@@ -170,7 +168,7 @@ The first launch will compile the Rust backend (~2-5 minutes). Subsequent launch
 
 ## ⚠️ Troubleshooting
 
-### macOS: "App is damaged" or sent to Trash
+### macOS: Quarantine warning (rare — app is notarized)
 ```bash
 xattr -cr /Applications/The_Undesirables.app
 ```
