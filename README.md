@@ -30,13 +30,14 @@ This is **not** a chatbot wrapper. It's a full AI workstation that runs natively
 
 ## 📦 Download — v1.2.1
 
-| Platform | Download | Install |
-|----------|----------|---------|
-| 🍎 **macOS** (Apple Silicon) | [**Download .dmg**](https://gitlab.com/meme-merchants/undesirables-desktop/-/releases/v1.2.1/downloads/The_Undesirables_1.2.1_aarch64_signed.dmg) | Open DMG → drag to Applications |
-| 🐧 **Linux** (Ubuntu/Debian x86_64) | [**Download .deb**](https://gitlab.com/meme-merchants/undesirables-desktop/-/releases/v1.2.1/downloads/The_Undesirables_1.2.1_amd64.deb) | `sudo dpkg -i The_Undesirables_1.2.1_amd64.deb` |
-| 🪟 **Windows** (x64) | [**Download .exe**](https://gitlab.com/meme-merchants/undesirables-desktop/-/releases/v1.2.1/downloads/The_Undesirables_1.2.1_x64-setup.exe) | Double-click → follow installer |
+| Platform | File | Install |
+|----------|------|---------|
+| 🍎 **macOS** (Apple Silicon) | `The_Undesirables_1.2.1_aarch64_signed.dmg` | Open DMG → drag to Applications |
+| 🐧 **Linux** (Ubuntu/Debian x86_64) | `The_Undesirables_1.2.1_amd64.deb` | `sudo dpkg -i *.deb` |
+| 🐧 **Linux** (Fedora/RHEL x86_64) | `The_Undesirables-1.2.1-1.x86_64.rpm` | `sudo rpm -i *.rpm` |
+| 🪟 **Windows** (x64) | `The_Undesirables_1.2.1_x64-setup.exe` | Double-click → follow installer |
 
-> **All releases:** [gitlab.com/meme-merchants/undesirables-desktop/-/releases](https://gitlab.com/meme-merchants/undesirables-desktop/-/releases)
+### 👉 [**Download from Releases Page**](https://gitlab.com/meme-merchants/undesirables-desktop/-/releases)
 
 ---
 
