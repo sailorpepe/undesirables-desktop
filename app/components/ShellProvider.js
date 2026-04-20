@@ -79,7 +79,15 @@ export function ShellProvider({ children }) {
     };
 
     loadShell();
-    return () => { cancelled = true; };
+
+    // Listen for shell-updated events from auto-fetch in ChatInterface
+    const handleShellUpdate = () => loadShell();
+    window.addEventListener('shell-updated', handleShellUpdate);
+
+    return () => { 
+      cancelled = true; 
+      window.removeEventListener('shell-updated', handleShellUpdate);
+    };
   }, []);
 
   // Debounced save to store whenever shell changes
