@@ -198,6 +198,17 @@ function HomeClientInner({ acceptedTerms, setAcceptedTerms, bootstrapped, setBoo
                   const content = await res.text();
                   if (!content || content.length < 50) throw new Error('SOUL_CONTENT_INVALID');
                   await writeTextFile(soulFile, content);
+                  
+                  // Copy avatar.png for instant local-first shell loading
+                  try {
+                    const { writeFile } = await import('@tauri-apps/plugin-fs');
+                    const avatarRes = await fetch('/demo-soul/avatar.png');
+                    if (avatarRes.ok) {
+                      const avatarBuf = await avatarRes.arrayBuffer();
+                      const avatarPath = await join(demoPath, 'avatar.png');
+                      await writeFile(avatarPath, new Uint8Array(avatarBuf));
+                    }
+                  } catch (e) { console.warn('Avatar copy failed (non-fatal):', e); }
                 }
                 setWorkspacePath(demoPath);
               } catch (err) {
