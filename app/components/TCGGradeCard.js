@@ -460,10 +460,29 @@ export default function TCGGradeCard({ content, cardImages = [] }) {
              </div>
            </div>
 
-           {/* Price Source + Start Price */}
-           <div className="text-[8px] text-zinc-600 mt-1 px-1 flex justify-between">
-             <span>Start: ${simStats.startPrice ? simStats.startPrice.toFixed(2) : '—'}</span>
-             <span className="italic">{simStats.priceSource || 'Synthetic'}</span>
+           {/* Price Mechanics (Start Price & Synthetic Vault Floor) */}
+           <div className="flex flex-col gap-1 mt-2 px-1">
+             <div className="text-[9px] text-zinc-400 flex justify-between items-center bg-black/50 py-1.5 px-2 rounded-md border border-white/5">
+               <span className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_4px_rgba(59,130,246,0.8)]"></span>
+                  Market Baseline: <span className="font-bold text-white">${simStats.startPrice ? simStats.startPrice.toFixed(2) : '—'}</span>
+               </span>
+               <span className="italic text-[8px] text-zinc-600">{simStats.priceSource || 'Synthetic'}</span>
+             </div>
+             
+             {/* The New Deep Think Liquidity Floor */}
+             <div className="text-[9px] text-emerald-400 flex justify-between items-center bg-emerald-950/20 py-1.5 px-2 rounded-md border border-emerald-500/20 shadow-[inset_0_0_10px_rgba(16,185,129,0.05)]">
+               <span className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[8px]">
+                  <Zap size={10} className="text-emerald-500" />
+                  Instant Vault Payout
+               </span>
+               <span className="font-black text-emerald-300 text-[10px]">
+                  {report.status === "REJECTED_ILLIQUID_ASSET" || report.status === "REJECTED_EXCESSIVE_RISK_MARGIN" 
+                    ? <span className="text-red-400">NO OFFER (ILLIQUID)</span> 
+                    : `$${report.synthetic_floor_price ? Number(report.synthetic_floor_price).toFixed(2) : (simStats.startPrice ? (simStats.startPrice * 0.85).toFixed(2) : '—')}`
+                  }
+               </span>
+             </div>
            </div>
 
            {/* Legal Disclaimer */}
