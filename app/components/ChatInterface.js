@@ -685,40 +685,57 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
         { role: 'system', content: `MOUNTED SOUL: #${soulId} — ${loadedCount}/5 consciousness layers active` }
       ]);
 
-      // === AUTO-FETCH SOUL AVATAR ===
-      // Parse token_id from SOUL.md frontmatter and fetch the Undesirable's NFT image
-      const tokenIdMatch = soulContent.match(/token_id:\s*(\d+)/i);
-      if (tokenIdMatch) {
-        const tokenId = tokenIdMatch[1];
-        const UNDESIRABLES_CONTRACT = '0xa893648a701c03b14bf2fb767b72b2c55ed5c17a';
+      // === AUTO-LOAD SOUL AVATAR (Local-First Priority) ===
+      // Tier 1: Check for local avatar file in workspace folder (instant, offline)
+      // Tier 2: Check image_url field in SOUL.md frontmatter  
+      // Tier 3: On-chain fallback via public RPC (no Alchemy needed)
+      try {
+        const { load } = await import('@tauri-apps/plugin-store');
+        const shellStore = await load('shell.json', { autoSave: true });
+        const existingShell = await shellStore.get('shell_config');
         
-        // Only auto-fetch if user hasn't manually set a custom shell
-        try {
-          const { load } = await import('@tauri-apps/plugin-store');
-          const shellStore = await load('shell.json', { autoSave: true });
-          const existingShell = await shellStore.get('shell_config');
+        // Skip if user has manually customized their shell
+        if (!existingShell || existingShell.source === 'default') {
+          let imageUrl = null;
+          let avatarSource = 'default';
           
-          // Skip if user has already customized their shell (NFT or upload)
-          if (!existingShell || existingShell.source === 'default') {
-            // Try Alchemy first (if key saved), then public RPC
-            let imageUrl = null;
-            try {
-              const credStore = await load('credentials.json', { autoSave: false });
-              const alchemyKey = await credStore.get('undesirables_alchemy_key');
-              
-              if (alchemyKey && alchemyKey.length > 20) {
-                const res = await fetch(`https://eth-mainnet.g.alchemy.com/nft/v3/${alchemyKey}/getNFTMetadata?contractAddress=${UNDESIRABLES_CONTRACT}&tokenId=${tokenId}`);
-                if (res.ok) {
-                  const data = await res.json();
-                  imageUrl = data.image?.cachedUrl || data.image?.originalUrl || data.raw?.metadata?.image || null;
-                }
-              }
-            } catch (e) {
-              console.warn('[SHELL] Alchemy auto-fetch failed:', e.message);
-            }
+          // ── TIER 1: Local file in workspace folder ──
+          try {
+            const { exists } = await import('@tauri-apps/plugin-fs');
+            const { convertFileSrc } = await import('@tauri-apps/api/core');
             
-            // Fallback: try tokenURI via public RPC
-            if (!imageUrl) {
+            const avatarCandidates = ['avatar.png', 'avatar.jpg', 'avatar.webp', 'avatar.gif', 'image.png', 'nft.png'];
+            for (const candidate of avatarCandidates) {
+              const filePath = activeWorkspace + '/' + candidate;
+              const fileExists = await exists(filePath);
+              if (fileExists) {
+                imageUrl = convertFileSrc(filePath);
+                avatarSource = 'local';
+                console.log(`[SHELL] Tier 1 HIT: Found local avatar at ${candidate}`);
+                break;
+              }
+            }
+          } catch (e) {
+            console.warn('[SHELL] Tier 1 (local file) check failed:', e.message);
+          }
+          
+          // ── TIER 2: image_url field in SOUL.md frontmatter ──
+          if (!imageUrl) {
+            const imageUrlMatch = soulContent.match(/image_url:\s*["\']?(https?:\/\/[^\s"']+)/i);
+            if (imageUrlMatch) {
+              imageUrl = imageUrlMatch[1];
+              avatarSource = 'frontmatter';
+              console.log('[SHELL] Tier 2 HIT: Found image_url in SOUL.md frontmatter');
+            }
+          }
+          
+          // ── TIER 3: On-chain fetch via public RPC (no Alchemy needed) ── 
+          if (!imageUrl) {
+            const tokenIdMatch = soulContent.match(/token_id:\s*(\d+)/i);
+            if (tokenIdMatch) {
+              const tokenId = tokenIdMatch[1];
+              const UNDESIRABLES_CONTRACT = '0xa893648a701c03b14bf2fb767b72b2c55ed5c17a';
+              
               try {
                 const tokenIdHex = BigInt(tokenId).toString(16).padStart(64, '0');
                 const rpcRes = await fetch('https://eth.public-rpc.com', {
@@ -741,33 +758,43 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
                       const meta = await metaRes.json();
                       imageUrl = meta.image || meta.image_url;
                       if (imageUrl?.startsWith('ipfs://')) imageUrl = 'https://ipfs.io/ipfs/' + imageUrl.slice(7);
+                      avatarSource = 'onchain';
+                      console.log(`[SHELL] Tier 3 HIT: Fetched from chain for token #${tokenId}`);
                     }
                   }
                 }
               } catch (e) {
-                console.warn('[SHELL] Public RPC auto-fetch failed:', e.message);
+                console.warn('[SHELL] Tier 3 (on-chain) fetch failed:', e.message);
               }
             }
-            
-            if (imageUrl) {
-              // Save to shell store so avatar persists
-              await shellStore.set('shell_config', {
-                source: 'default',
-                avatarUrl: imageUrl,
-                nft: { contractAddress: UNDESIRABLES_CONTRACT, tokenId, chain: 'ethereum', metadata: { name: getMatch(/name:\s+"(.*?)"/, `Undesirable #${tokenId}`) } },
-                companion: { enabled: false, imageUrl: null, label: '' },
-                theme: { preset: existingShell?.theme?.preset || 'default', extractedPalette: null, customAccent: null },
-              });
-              await shellStore.save();
-              console.log(`[SHELL] Auto-loaded avatar for Undesirable #${tokenId}`);
-              
-              // Force ShellProvider to reload by dispatching a storage event
-              window.dispatchEvent(new Event('shell-updated'));
-            }
           }
-        } catch (e) {
-          console.warn('[SHELL] Auto-avatar setup failed (non-fatal):', e.message);
+          
+          // Save the resolved avatar to shell store
+          if (imageUrl) {
+            const tokenIdMatch = soulContent.match(/token_id:\s*(\d+)/i);
+            const tokenId = tokenIdMatch ? tokenIdMatch[1] : '';
+            const soulName = getMatch(/name:\s+"(.*?)"/, `Undesirable #${tokenId || 'Unknown'}`);
+            
+            await shellStore.set('shell_config', {
+              source: 'default',
+              avatarUrl: imageUrl,
+              nft: { 
+                contractAddress: tokenId ? '0xa893648a701c03b14bf2fb767b72b2c55ed5c17a' : '', 
+                tokenId: tokenId || '', 
+                chain: 'ethereum', 
+                metadata: { name: soulName } 
+              },
+              companion: existingShell?.companion || { enabled: false, imageUrl: null, label: '' },
+              theme: existingShell?.theme || { preset: 'default', extractedPalette: null, customAccent: null },
+            });
+            await shellStore.save();
+            console.log(`[SHELL] Avatar loaded via ${avatarSource}: ${soulName}`);
+            
+            window.dispatchEvent(new Event('shell-updated'));
+          }
         }
+      } catch (e) {
+        console.warn('[SHELL] Auto-avatar setup failed (non-fatal):', e.message);
       }
     };
     loadConsciousness();
