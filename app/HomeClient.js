@@ -7,6 +7,7 @@ import ChatInterface from './components/ChatInterface';
 import ErrorBoundary from './components/ErrorBoundary';
 import DemoMode from './components/DemoMode';
 import AlchemySetup from './components/AlchemySetup';
+import { ShellProvider } from './components/ShellProvider';
 import dynamic from 'next/dynamic';
 
 const SoulParticles = dynamic(() => import('./components/SoulParticles'), { ssr: false });
@@ -47,6 +48,30 @@ export default function HomeClient({ bootToken }) {
   };
 
   if (!isClient) return null;
+
+  // Wrap everything in ShellProvider for the visual skin layer
+  return (
+    <ShellProvider>
+      <HomeClientInner
+        acceptedTerms={acceptedTerms}
+        setAcceptedTerms={setAcceptedTerms}
+        bootstrapped={bootstrapped}
+        setBootstrapped={setBootstrapped}
+        workspacePath={workspacePath}
+        setWorkspacePath={setWorkspacePath}
+        demoMode={demoMode}
+        setDemoMode={setDemoMode}
+        alchemyMode={alchemyMode}
+        setAlchemyMode={setAlchemyMode}
+        globalTheme={globalTheme}
+        changeTheme={changeTheme}
+        bootToken={bootToken}
+      />
+    </ShellProvider>
+  );
+}
+
+function HomeClientInner({ acceptedTerms, setAcceptedTerms, bootstrapped, setBootstrapped, workspacePath, setWorkspacePath, demoMode, setDemoMode, alchemyMode, setAlchemyMode, globalTheme, changeTheme, bootToken }) {
 
   if (!acceptedTerms) {
     return <LegalGateway onAccept={() => setAcceptedTerms(true)} />;

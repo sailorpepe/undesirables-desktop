@@ -11,6 +11,8 @@ import TCGGradeCard from './TCGGradeCard';
 import TCGMarketBrowser from './TCGMarketBrowser';
 import SpreadsheetGrid from './SpreadsheetGrid';
 import ThreeDViewer from './ThreeDViewer';
+import ShellAvatar from './ShellAvatar';
+import ShellCustomizer from './ShellCustomizer';
 
 // dynamic import for NextJS to avoid SSR hydration mismatches
 import dynamic from 'next/dynamic';
@@ -143,6 +145,7 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
   const [showCamera, setShowCamera] = useState(false); // WebRTC overlay
   const [showSpreadsheet, setShowSpreadsheet] = useState(false);
   const [activeTraitFocus, setActiveTraitFocus] = useState(null); // 'neuroticism', 'extraversion', 'all', etc.
+  const [shellModalOpen, setShellModalOpen] = useState(false); // Shell Customizer modal
 
   // === Meme Studio State ===
   const [memeStudio, setMemeStudio] = useState({
@@ -2859,6 +2862,20 @@ Output ONLY the raw HTML string inside a \`\`\`html code block. Do not add any c
         </h2>
         <p className="text-[#e0faec]/40 text-xs font-mono mb-4 uppercase tracking-widest">Select an agent skill mapping</p>
 
+        {/* Shell Avatar + Your Look button */}
+        <div className="flex items-center gap-3 mb-4 pb-3 border-b border-white/5">
+          <ShellAvatar size="md" onClick={() => setShellModalOpen(true)} />
+          <div className="flex flex-col">
+            <span className="text-neon-primary/70 font-mono text-[10px] uppercase tracking-widest">Visual Shell</span>
+            <button 
+              onClick={() => setShellModalOpen(true)}
+              className="text-zinc-400 hover:text-neon-primary font-mono text-xs transition-colors text-left"
+            >
+              Your Look →
+            </button>
+          </div>
+        </div>
+
         {/* 🔥 MINT YOUR SOUL — External link to Scatter */}
         <button
           onClick={async () => {
@@ -4948,6 +4965,9 @@ Output ONLY the raw HTML string inside a \`\`\`html code block. Do not add any c
           />
         </Suspense>
       )}
+
+      {/* Shell Customizer Modal */}
+      <ShellCustomizer isOpen={shellModalOpen} onClose={() => setShellModalOpen(false)} />
 
     </div>
   );
