@@ -13,6 +13,8 @@ import SpreadsheetGrid from './SpreadsheetGrid';
 import ThreeDViewer from './ThreeDViewer';
 import ShellAvatar from './ShellAvatar';
 import ShellCustomizer from './ShellCustomizer';
+import { useShell } from './ShellProvider';
+import { extractPalette } from '../utils/extractPalette';
 
 // dynamic import for NextJS to avoid SSR hydration mismatches
 import dynamic from 'next/dynamic';
@@ -682,6 +684,91 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
       setLogs(prev => [...prev,
         { role: 'system', content: `MOUNTED SOUL: #${soulId} — ${loadedCount}/5 consciousness layers active` }
       ]);
+
+      // === AUTO-FETCH SOUL AVATAR ===
+      // Parse token_id from SOUL.md frontmatter and fetch the Undesirable's NFT image
+      const tokenIdMatch = soulContent.match(/token_id:\s*(\d+)/i);
+      if (tokenIdMatch) {
+        const tokenId = tokenIdMatch[1];
+        const UNDESIRABLES_CONTRACT = '0xa893648a701c03b14bf2fb767b72b2c55ed5c17a';
+        
+        // Only auto-fetch if user hasn't manually set a custom shell
+        try {
+          const { load } = await import('@tauri-apps/plugin-store');
+          const shellStore = await load('shell.json', { autoSave: true });
+          const existingShell = await shellStore.get('shell_config');
+          
+          // Skip if user has already customized their shell (NFT or upload)
+          if (!existingShell || existingShell.source === 'default') {
+            // Try Alchemy first (if key saved), then public RPC
+            let imageUrl = null;
+            try {
+              const credStore = await load('credentials.json', { autoSave: false });
+              const alchemyKey = await credStore.get('undesirables_alchemy_key');
+              
+              if (alchemyKey && alchemyKey.length > 20) {
+                const res = await fetch(`https://eth-mainnet.g.alchemy.com/nft/v3/${alchemyKey}/getNFTMetadata?contractAddress=${UNDESIRABLES_CONTRACT}&tokenId=${tokenId}`);
+                if (res.ok) {
+                  const data = await res.json();
+                  imageUrl = data.image?.cachedUrl || data.image?.originalUrl || data.raw?.metadata?.image || null;
+                }
+              }
+            } catch (e) {
+              console.warn('[SHELL] Alchemy auto-fetch failed:', e.message);
+            }
+            
+            // Fallback: try tokenURI via public RPC
+            if (!imageUrl) {
+              try {
+                const tokenIdHex = BigInt(tokenId).toString(16).padStart(64, '0');
+                const rpcRes = await fetch('https://eth.public-rpc.com', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ jsonrpc: '2.0', method: 'eth_call', params: [{ to: UNDESIRABLES_CONTRACT, data: '0xc87b56dd' + tokenIdHex }, 'latest'], id: 1 }),
+                });
+                const rpcData = await rpcRes.json();
+                if (rpcData.result && rpcData.result !== '0x') {
+                  const hex = rpcData.result.slice(2);
+                  const strLen = parseInt(hex.slice(64, 128), 16);
+                  if (strLen > 0 && strLen < 10000) {
+                    const strHex = hex.slice(128, 128 + strLen * 2);
+                    const bytes = new Uint8Array(strLen);
+                    for (let i = 0; i < strLen; i++) bytes[i] = parseInt(strHex.slice(i * 2, i * 2 + 2), 16);
+                    let tokenURI = new TextDecoder().decode(bytes);
+                    if (tokenURI.startsWith('ipfs://')) tokenURI = 'https://ipfs.io/ipfs/' + tokenURI.slice(7);
+                    const metaRes = await fetch(tokenURI);
+                    if (metaRes.ok) {
+                      const meta = await metaRes.json();
+                      imageUrl = meta.image || meta.image_url;
+                      if (imageUrl?.startsWith('ipfs://')) imageUrl = 'https://ipfs.io/ipfs/' + imageUrl.slice(7);
+                    }
+                  }
+                }
+              } catch (e) {
+                console.warn('[SHELL] Public RPC auto-fetch failed:', e.message);
+              }
+            }
+            
+            if (imageUrl) {
+              // Save to shell store so avatar persists
+              await shellStore.set('shell_config', {
+                source: 'default',
+                avatarUrl: imageUrl,
+                nft: { contractAddress: UNDESIRABLES_CONTRACT, tokenId, chain: 'ethereum', metadata: { name: getMatch(/name:\s+"(.*?)"/, `Undesirable #${tokenId}`) } },
+                companion: { enabled: false, imageUrl: null, label: '' },
+                theme: { preset: existingShell?.theme?.preset || 'default', extractedPalette: null, customAccent: null },
+              });
+              await shellStore.save();
+              console.log(`[SHELL] Auto-loaded avatar for Undesirable #${tokenId}`);
+              
+              // Force ShellProvider to reload by dispatching a storage event
+              window.dispatchEvent(new Event('shell-updated'));
+            }
+          }
+        } catch (e) {
+          console.warn('[SHELL] Auto-avatar setup failed (non-fatal):', e.message);
+        }
+      }
     };
     loadConsciousness();
 
