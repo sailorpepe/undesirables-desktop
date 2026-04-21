@@ -1,0 +1,26 @@
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# System deps for Tauri Linux build
+RUN apt-get update && apt-get install -y \
+    curl build-essential wget git software-properties-common \
+    libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
+    libssl-dev pkg-config xdg-utils file \
+    && rm -rf /var/lib/apt/lists/*
+
+# Python 3.12 via deadsnakes
+RUN add-apt-repository -y ppa:deadsnakes/ppa \
+    && apt-get update \
+    && apt-get install -y python3.12 python3.12-venv python3.12-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Node.js 20
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs
+
+# Rust 1.88
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.88.0
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+WORKDIR /build

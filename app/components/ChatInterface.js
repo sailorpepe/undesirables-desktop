@@ -399,40 +399,48 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
       const { invoke } = await import('@tauri-apps/api/core');
       const { convertFileSrc } = await import('@tauri-apps/api/core');
       
-      const mcpResult = await Promise.race([
-        invoke('execute_mcp_tool', {
-          serverName: 'undesirables-mcp-server',
-          toolName: 'soul_speak',
-          args: {
-            text: sanitizedTTS,
-            soul_openness: O,
-            soul_conscientiousness: C,
-            soul_extraversion: E,
-            soul_agreeableness: A,
-            soul_neuroticism: N,
-          }
-        }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Kokoro timeout (90s)')), 90000))
-      ]);
+      try {
+        const mcpResult = await Promise.race([
+          invoke('execute_mcp_tool', {
+            serverName: 'undesirables-mcp-server',
+            toolName: 'soul_speak',
+            args: {
+              text: sanitizedTTS,
+              soul_openness: O,
+              soul_conscientiousness: C,
+              soul_extraversion: E,
+              soul_agreeableness: A,
+              soul_neuroticism: N,
+            }
+          }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Kokoro timeout (90s)')), 90000))
+        ]);
 
-      const result = typeof mcpResult === 'string' ? JSON.parse(mcpResult) : mcpResult;
-      
-      if (result && result.status === 'success' && result.path) {
-        // Play the Kokoro WAV file via HTML5 Audio
-        const audioSrc = convertFileSrc(result.path);
-        const audio = new Audio(audioSrc);
-        audio.volume = Math.min(1.0, Math.max(0.55, 0.65 + (O / 100 * 0.30)));
+        const result = typeof mcpResult === 'string' ? JSON.parse(mcpResult) : mcpResult;
         
-        audio.onplay = () => {
-          window.__TTS_IMPULSE__ = 2.0; // Visual feedback
-        };
-        audio.onended = () => {
-          window.__TTS_IMPULSE__ = 0;
-        };
-        
-        await audio.play();
-        console.log('[TTS] Kokoro voice:', result.voice_preset?.voice, 'pitch:', result.voice_preset?.pitch_semitones);
-        return; // Kokoro succeeded — skip WebKit
+        if (result && result.status === 'success' && result.path) {
+          // Play the Kokoro WAV file via HTML5 Audio
+          const audioSrc = convertFileSrc(result.path);
+          const audio = new Audio(audioSrc);
+          audio.volume = Math.min(1.0, Math.max(0.55, 0.65 + (O / 100 * 0.30)));
+          
+          audio.onplay = () => {
+            window.__TTS_IMPULSE__ = 2.0; // Visual feedback
+          };
+          audio.onended = () => {
+            window.__TTS_IMPULSE__ = 0;
+          };
+          
+          try {
+            await audio.play();
+          } catch (e) {
+            console.warn('[TTS] Auto-play prevented by browser. User interaction required:', e);
+          }
+          console.log('[TTS] Kokoro voice:', result.voice_preset?.voice, 'pitch:', result.voice_preset?.pitch_semitones);
+          return; // Kokoro succeeded — skip WebKit
+        }
+      } catch (kokoroError) {
+        console.warn('[TTS] Kokoro MCP failed, falling back to WebKit:', kokoroError);
       }
     } // end kokoroEnabled
 
