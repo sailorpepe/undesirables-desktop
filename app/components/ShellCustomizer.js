@@ -16,6 +16,19 @@ import { useShell } from './ShellProvider';
 import useNFTFetch from '../hooks/useNFTFetch';
 import { extractPalette, paletteToThemeVars } from '../utils/extractPalette';
 
+// SECURITY: Only allow safe URL schemes for user-provided image URLs.
+// Blocks javascript:, data: (SVG script injection), file:// (local access), http:// (tracking/MITM)
+function isValidImageUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim().toLowerCase();
+  return (
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('ipfs://') ||
+    trimmed.startsWith('ar://') ||
+    trimmed.startsWith('asset:')
+  );
+}
+
 const PRESET_THEMES = [
   { id: 'default', label: 'Hacker Green', color: '#b4f7a6', bg: '#112d1c' },
   { id: 'cyberpunk', label: 'Magenta Punk', color: '#ff00ff', bg: '#140014' },
@@ -129,7 +142,14 @@ export default function ShellCustomizer({ isOpen, onClose }) {
     setThemePreset('custom');
   };
 
+  const [companionError, setCompanionError] = useState('');
+
   const handleSaveCompanion = () => {
+    if (companionInput && !isValidImageUrl(companionInput)) {
+      setCompanionError('URL must start with https://, ipfs://, or ar://');
+      return;
+    }
+    setCompanionError('');
     setCompanion(companionInput || null, companionLabel);
   };
 
@@ -362,6 +382,9 @@ export default function ShellCustomizer({ isOpen, onClose }) {
                 >
                   Set
                 </button>
+                {companionError && (
+                  <span className="text-red-400 font-mono text-[10px] ml-2">{companionError}</span>
+                )}
               </div>
               {shell.companion?.imageUrl && (
                 <div className="flex items-center gap-3 mt-2">

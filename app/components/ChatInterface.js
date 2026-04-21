@@ -85,6 +85,8 @@ Object.values(BRAIN_MODES).forEach(mode => {
 });
 
 export default function ChatInterface({ workspacePath, bootToken, onExit, isRestricted }) {
+  const { shell } = useShell();
+  const [bgAvatarVisible, setBgAvatarVisible] = useState(true); // Default ON to immediately wow the user
   const jitVaultRef = useRef({ bankInfo: '', logoTag: '' });
   const [logs, setLogs] = useState([
     { role: 'agent', content: '> `UNDESIRABLES_OS v4.4.4`\n\nI am online. Ready to execute code, analyze security, sync videos, or generate banners.\n\nDrop files anywhere on this window to begin.' }
@@ -685,6 +687,10 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
         { role: 'system', content: `MOUNTED SOUL: #${soulId} — ${loadedCount}/5 consciousness layers active` }
       ]);
 
+      // Parse token_id from SOUL.md frontmatter
+      const tokenIdMatch = soulContent.match(/token_id:\s*(\d+)/i);
+      const currentTokenId = tokenIdMatch ? tokenIdMatch[1] : '';
+
       // === AUTO-LOAD SOUL AVATAR (Local-First Priority) ===
       // Tier 1: Check for local avatar file in workspace folder (instant, offline)
       // Tier 2: Check image_url field in SOUL.md frontmatter  
@@ -694,8 +700,9 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
         const shellStore = await load('shell.json', { autoSave: true });
         const existingShell = await shellStore.get('shell_config');
         
-        // Skip if user has manually customized their shell
-        if (!existingShell || existingShell.source === 'default') {
+        // Force update if this is a newly loaded soul (different token ID), otherwise respect custom 'upload' or 'nft'
+        const isNewSoul = existingShell?.nft?.tokenId && existingShell.nft.tokenId !== currentTokenId;
+        if (!existingShell || existingShell.source === 'default' || isNewSoul) {
           let imageUrl = null;
           let avatarSource = 'default';
           
@@ -3316,6 +3323,14 @@ Output ONLY the raw HTML string inside a \`\`\`html code block. Do not add any c
                 {particlesVisible ? 'DISABLE PARTICLES' : 'ENABLE PARTICLES'}
               </button>
               <button 
+                onClick={() => setBgAvatarVisible(prev => !prev)}
+                className={`w-full text-left border p-2 rounded text-[11px] font-mono transition-all flex items-center justify-center gap-2 cursor-pointer ${bgAvatarVisible ? 'bg-[#ff14a0]/10 border-[#ff14a0] text-[#ff14a0] shadow-[0_0_10px_rgba(255,20,160,0.2)]' : 'bg-black border-[#ff14a0]/30 hover:border-[#ff14a0] text-[#ff14a0] hover:text-white'}`}
+                title="Toggle the massive background rendering of your AI soul"
+              >
+                <div className="w-2 h-2 rounded-full border border-current flex items-center justify-center">{bgAvatarVisible ? <div className="w-1 h-1 bg-current rounded-full animate-pulse"></div> : null}</div>
+                {bgAvatarVisible ? 'DISABLE ASTRAL PROJECTION' : 'ENABLE ASTRAL PROJECTION'}
+              </button>
+              <button 
                 onClick={() => setShowCamera(true)}
                 className="w-full text-left bg-black border border-[#3b82f6]/40 hover:border-[#3b82f6] hover:bg-[#3b82f6]/10 text-[#3b82f6] hover:text-white p-2 rounded text-[11px] font-mono transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
@@ -3337,6 +3352,23 @@ Output ONLY the raw HTML string inside a \`\`\`html code block. Do not add any c
 
         {/* FIX 2: Use inset-0 to prevent 0px height collapse in Safari */}
         <div className="absolute inset-0 z-0">
+          {/* BACKGROUND AVATAR TEST LAYER */}
+          {bgAvatarVisible && shell?.avatarUrl && (
+            <div className="absolute inset-0 z-[-1] flex items-center justify-center overflow-hidden pointer-events-none">
+              <img 
+                src={shell.avatarUrl} 
+                alt="Background Avatar" 
+                className="w-[100vw] h-[100vw] max-w-[1000px] max-h-[1000px] object-cover scale-110 opacity-[0.85] transition-opacity duration-1000"
+                style={{ 
+                  WebkitMaskImage: 'radial-gradient(circle, rgba(0,0,0,1) 15%, rgba(0,0,0,0) 65%)', 
+                  maskImage: 'radial-gradient(circle, rgba(0,0,0,1) 15%, rgba(0,0,0,0) 65%)',
+                  filter: 'brightness(1.1) contrast(1.1)'
+                }}
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+            </div>
+          )}
+
           <Suspense fallback={null}>
             <SoulParticles 
               visible={particlesVisible} 
