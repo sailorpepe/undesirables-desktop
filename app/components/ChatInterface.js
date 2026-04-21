@@ -1759,6 +1759,23 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
           }
         ];
       }
+      // ====================================================================
+      // 🎙️ PERCEPTUAL MASKING: Play a filler audio clip for tool requests
+      // Tool calls (card grading, vision, etc.) are non-streaming and take
+      // 5-15 seconds of silence. Play a short "thinking" clip to mask the wait.
+      // ====================================================================
+      if (isToolRequest && !isMuted) {
+        try {
+          const fillerIndex = Math.floor(Math.random() * 7) + 1;
+          const fillerAudio = new Audio(`/filler_audio/filler_${fillerIndex}.wav`);
+          fillerAudio.volume = 0.55;
+          fillerAudio.onplay = () => { window.__TTS_IMPULSE__ = 1.0; };
+          fillerAudio.onended = () => { window.__TTS_IMPULSE__ = 0; };
+          await fillerAudio.play().catch(() => {}); // Don't block if autoplay restricted
+        } catch (e) {
+          console.debug('[FILLER] Skipped:', e.message);
+        }
+      }
 
       const response = await fetch(OLLAMA_URL, {
         method: 'POST',
