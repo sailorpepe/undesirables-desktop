@@ -226,6 +226,35 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
       .then(m => m.homeDir().then(setSystemHomeDir))
       .catch(() => null);
   }, []);
+
+  // ====================================================================
+  // 🔥 COLD-START KILLER: Pre-warm the default Ollama model on app launch
+  // Sends a silent 1-token request so the model loads into GPU memory
+  // while the user is looking at the startup UI. Eliminates 30-60s wait.
+  // ====================================================================
+  useEffect(() => {
+    const prewarm = async () => {
+      try {
+        await fetch(OLLAMA_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: DEFAULT_MODEL,
+            messages: [{ role: 'user', content: 'hi' }],
+            stream: false,
+            keep_alive: -1,
+            options: { num_predict: 1 }
+          })
+        });
+        console.log('[PREWARM] Default model loaded into GPU memory');
+      } catch (e) {
+        console.debug('[PREWARM] Ollama not ready yet:', e.message);
+      }
+    };
+    // Delay 2s to let Ollama daemon start first
+    const timer = setTimeout(prewarm, 2000);
+    return () => clearTimeout(timer);
+  }, []);
   const recognitionRef = useRef(null);
   const synthRef = useRef(null);
   const shouldDictateRef = useRef(false);
@@ -393,34 +422,30 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
     const N = Number(traits.neuroticism) || 50;
 
     // === KOKORO TTS ENABLED ===
-    // Routing through the persistent MCP sidecar daemon creates instant sub-second responses.
+    // Routing through the persistent async FastAPI MCP sidecar daemon creates instant sub-second responses.
     const kokoroEnabled = true;
     if (kokoroEnabled) {
-      const { invoke } = await import('@tauri-apps/api/core');
-      const { convertFileSrc } = await import('@tauri-apps/api/core');
-      
       try {
-        const mcpResult = await Promise.race([
-          invoke('execute_mcp_tool', {
-            serverName: 'undesirables-mcp-server',
-            toolName: 'soul_speak',
-            args: {
+        const fetchRes = await Promise.race([
+          fetch('http://127.0.0.1:8740/mcp/speak', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
               text: sanitizedTTS,
               soul_openness: O,
               soul_conscientiousness: C,
               soul_extraversion: E,
               soul_agreeableness: A,
               soul_neuroticism: N,
-            }
+            })
           }),
           new Promise((_, reject) => setTimeout(() => reject(new Error('Kokoro timeout (90s)')), 90000))
         ]);
 
-        const result = typeof mcpResult === 'string' ? JSON.parse(mcpResult) : mcpResult;
-        
-        if (result && result.status === 'success' && result.path) {
-          // Play the Kokoro WAV file via HTML5 Audio
-          const audioSrc = convertFileSrc(result.path);
+        if (fetchRes.ok) {
+          // Play the Kokoro WAV file directly from memory blob (zero disk I/O)
+          const blob = await fetchRes.blob();
+          const audioSrc = URL.createObjectURL(blob);
           const audio = new Audio(audioSrc);
           audio.volume = Math.min(1.0, Math.max(0.55, 0.65 + (O / 100 * 0.30)));
           
@@ -429,6 +454,7 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
           };
           audio.onended = () => {
             window.__TTS_IMPULSE__ = 0;
+            URL.revokeObjectURL(audioSrc); // avoid memory leaks
           };
           
           try {
@@ -436,11 +462,13 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
           } catch (e) {
             console.warn('[TTS] Auto-play prevented by browser. User interaction required:', e);
           }
-          console.log('[TTS] Kokoro voice:', result.voice_preset?.voice, 'pitch:', result.voice_preset?.pitch_semitones);
+          console.log('[TTS] Kokoro voice Fast API completed');
           return; // Kokoro succeeded — skip WebKit
+        } else {
+          console.error('[TTS] Kokoro FastAPI returned status:', fetchRes.status);
         }
       } catch (kokoroError) {
-        console.warn('[TTS] Kokoro MCP failed, falling back to WebKit:', kokoroError);
+        console.warn('[TTS] Kokoro FastAPI failed, falling back to WebKit:', kokoroError);
       }
     } // end kokoroEnabled
 
@@ -1516,7 +1544,7 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
         model: (isVisionTask || (ollamaMessages.length > 0 && ollamaMessages[ollamaMessages.length-1].images)) ? 'qwen2.5vl:7b' : selectedModel,
         stream: !isToolRequest,
         messages: ollamaMessages,
-        keep_alive: '30m',
+        keep_alive: -1,  // Permanent GPU residency — eliminates cold-start latency
         options: {
           num_ctx: isSmallModel ? 2048 : (brainMode === 'nexus' ? 8192 : 4096),
           temperature: parseFloat(Math.max(0.1, Math.min(2.0, soulParams.temperature + emotionDeltas.temperature_delta)).toFixed(2)),
