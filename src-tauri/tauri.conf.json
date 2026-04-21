@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "The_Undesirables",
-  "version": "1.2.2",
+  "version": "1.3.0",
   "identifier": "com.undesirables.desktop",
   "build": {
     "frontendDist": "../out",
@@ -27,8 +27,8 @@
       "assetProtocol": {
         "enable": true,
         "scope": {
-          "allow": ["$HOME/Documents/**", "$DOWNLOAD/**", "$TEMP/**", "$APPLOCALDATA/**", "$DESKTOP/**", "$HOME/Movies/**"],
-          "deny": ["$HOME/.ssh/**", "$HOME/.gnupg/**", "$HOME/.aws/**", "$HOME/Library/**", "$HOME/.env", "$HOME/.bashrc", "$HOME/.zshrc", "$HOME/.config/**", "$HOME/.*/**"]
+          "allow": ["$HOME/Documents/**", "$DOWNLOAD/**", "$TEMP/**", "$APPDATA/**", "$DESKTOP/**", "$HOME/Movies/**"],
+          "deny": ["$HOME/.ssh/**", "$HOME/.gnupg/**", "$HOME/.aws/**", "$HOME/.env", "$HOME/.bashrc", "$HOME/.zshrc", "$HOME/.config/**", "$HOME/.*/**"]
         }
       }
     }
