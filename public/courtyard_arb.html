@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Courtyard.io — Verified Arbitrage Scanner</title>
+  <meta name="description" content="Live arbitrage scanner for Courtyard.io marketplace. Compare listing prices vs fair market value on Pokémon and Sports cards. Powered by The Undesirables.">
+  <meta property="og:title" content="Courtyard Arbitrage Scanner — Verified Alpha">
+  <meta property="og:description" content="Live scanner comparing Courtyard.io listing prices vs fair market value. Find underpriced Pokémon & Sports cards instantly.">
+  <meta property="og:image" content="https://the-undesirables.com/og-courtyard.png">
+  <meta property="og:url" content="https://the-undesirables.com/courtyard_arb.html">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Courtyard Arbitrage Scanner — Verified Alpha">
+  <meta name="twitter:description" content="Live scanner comparing listing prices vs FMV on Courtyard.io. Pokémon & Sports cards.">
+  <meta name="twitter:image" content="https://the-undesirables.com/og-courtyard.png">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #07070d;
+      color: #e0e0e8;
+      min-height: 100vh;
+      padding: 2rem;
+      overflow-x: hidden;
+    }
+
+    /* Particle canvas */
+    #particles {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 0;
+      pointer-events: none;
+    }
+    body > *:not(#particles):not(#loadingOverlay) {
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Loading Overlay */
+    #loadingOverlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(7, 7, 13, 0.95);
+      backdrop-filter: blur(8px);
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.5s ease-out;
+    }
+    .loader-spinner {
+      width: 60px;
+      height: 60px;
+      border: 4px solid rgba(57, 255, 20, 0.1);
+      border-top-color: #39ff14;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 2rem;
+      box-shadow: 0 0 20px rgba(57, 255, 20, 0.4);
+    }
+    .loader-text {
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: #fff;
+      margin-bottom: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      animation: pulse 1.5s infinite;
+    }
+    .loader-subtext {
+      font-size: 0.85rem;
+      color: #999;
+      margin-bottom: 0.2rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+    /* Scan line */
+    .scanline {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(57,255,20,0.15), rgba(0,229,255,0.1), transparent);
+      z-index: 999;
+      pointer-events: none;
+      animation: scanDown 8s linear infinite;
+    }
+    @keyframes scanDown {
+      0% { top: -2px; }
+      100% { top: 100vh; }
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+    .header h1 {
+      font-size: 2.2rem;
+      font-weight: 900;
+      background: linear-gradient(135deg, #39ff14 0%, #00e5ff 25%, #a855f7 50%, #ff6b6b 75%, #39ff14 100%);
+      background-size: 300% 300%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.3rem;
+      letter-spacing: -0.5px;
+      animation: gradientShift 6s ease infinite;
+    }
+    @keyframes gradientShift {
+      0%, 100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+    }
+    .header .sub {
+      color: #666;
+      font-size: 0.82rem;
+      margin-bottom: 0.6rem;
+    }
+    .header .verified-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0.35rem 1rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      background: rgba(57, 255, 20, 0.08);
+      border: 1px solid rgba(57, 255, 20, 0.25);
+      color: #39ff14;
+    }
+    .header .verified-badge .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #39ff14;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .methodology {
+      max-width: 700px;
+      margin: 0 auto 2rem;
+      padding: 1rem 1.25rem;
+      background: rgba(168, 85, 247, 0.06);
+      border: 1px solid rgba(168, 85, 247, 0.15);
+      border-radius: 12px;
+      font-size: 0.72rem;
+      color: #999;
+      line-height: 1.6;
+    }
+    .methodology strong { color: #a855f7; }
+
+    .stats-row {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 2rem;
+    }
+    .stat-card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 14px;
+      padding: 1.1rem 1.5rem;
+      text-align: center;
+      min-width: 135px;
+      transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s;
+      animation: breathe 4s ease-in-out infinite;
+      animation-delay: calc(var(--i, 0) * 0.5s);
+    }
+    .stat-card:hover {
+      transform: translateY(-4px) scale(1.03);
+      border-color: rgba(57, 255, 20, 0.25);
+      box-shadow: 0 4px 20px rgba(57, 255, 20, 0.08);
+    }
+    @keyframes breathe {
+      0%, 100% { border-color: rgba(255,255,255,0.07); }
+      50% { border-color: rgba(255,255,255,0.12); }
+    }
+    .stat-card .val {
+      font-size: 1.6rem;
+      font-weight: 900;
+    }
+    .stat-card .label {
+      font-size: 0.65rem;
+      color: #777;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-top: 0.3rem;
+    }
+    .green { color: #39ff14; }
+    .red { color: #ff4444; }
+    .cyan { color: #00e5ff; }
+    .gold { color: #ffd700; }
+    .purple { color: #a855f7; }
+
+    .chart-container {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 16px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      overflow-x: auto;
+      animation: borderGlow 6s ease-in-out infinite;
+    }
+    @keyframes borderGlow {
+      0%, 100% { border-color: rgba(255,255,255,0.06); box-shadow: none; }
+      50% { border-color: rgba(57, 255, 20, 0.08); box-shadow: 0 0 30px rgba(57, 255, 20, 0.02); }
+    }
+    .chart-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #999;
+      margin-bottom: 1.25rem;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .chart-title .icon { font-size: 1rem; }
+
+    .bar-chart {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .bar-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      padding: 5px 8px;
+      border-radius: 8px;
+      transition: background 0.2s;
+    }
+    .bar-row:hover {
+      background: rgba(255,255,255,0.04);
+    }
+    .bar-row.highlight {
+      background: rgba(57, 255, 20, 0.04);
+      border: 1px solid rgba(57, 255, 20, 0.1);
+    }
+    .bar-label {
+      width: 300px;
+      font-size: 0.7rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex-shrink: 0;
+    }
+    .bar-grade {
+      width: 80px;
+      font-size: 0.62rem;
+      color: #777;
+      flex-shrink: 0;
+      text-align: center;
+      background: rgba(255,255,255,0.04);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .bar-category {
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+      flex-shrink: 0;
+      font-size: 0.6rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .bar-track {
+      flex: 1;
+      height: 24px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 6px;
+      position: relative;
+      overflow: hidden;
+      min-width: 180px;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 6px;
+      position: absolute;
+      left: 0;
+      top: 0;
+      transition: width 0.9s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding-right: 8px;
+      font-size: 0.62rem;
+      font-weight: 800;
+      color: rgba(0,0,0,0.85);
+    }
+    .bar-fill.undervalued {
+      background: linear-gradient(90deg, #22c55e, #39ff14);
+    }
+    .bar-fill.overvalued {
+      background: linear-gradient(90deg, #ef4444, #f97316);
+    }
+    .bar-fill.neutral {
+      background: linear-gradient(90deg, #444, #666);
+    }
+    .bar-prices {
+      width: 175px;
+      display: flex;
+      gap: 6px;
+      font-size: 0.68rem;
+      flex-shrink: 0;
+      justify-content: flex-end;
+      align-items: center;
+    }
+    .bar-prices .list { color: #fff; font-weight: 700; }
+    .bar-prices .fmv { color: #666; font-size: 0.62rem; }
+    .bar-prices .delta {
+      font-weight: 800;
+      min-width: 48px;
+      text-align: right;
+      font-size: 0.72rem;
+    }
+
+    .legend {
+      display: flex;
+      gap: 1.5rem;
+      justify-content: center;
+      margin-bottom: 1.5rem;
+      font-size: 0.72rem;
+      color: #777;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+      display: inline-block;
+    }
+
+    .scatter-container {
+      position: relative;
+      width: 100%;
+      height: 420px;
+      margin-top: 1rem;
+    }
+    .scatter-canvas {
+      width: 100%;
+      height: 100%;
+    }
+
+    .tooltip {
+      position: fixed;
+      background: rgba(15, 15, 25, 0.97);
+      border: 1px solid rgba(57, 255, 20, 0.25);
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-size: 0.72rem;
+      pointer-events: none;
+      z-index: 100;
+      max-width: 300px;
+      backdrop-filter: blur(12px);
+      opacity: 0;
+      transition: opacity 0.15s;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    .tooltip.visible { opacity: 1; }
+    .tooltip .tt-name { font-weight: 800; margin-bottom: 6px; color: #fff; font-size: 0.78rem; }
+    .tooltip .tt-row { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 2px; }
+    .tooltip .tt-label { color: #777; }
+    .tooltip .tt-val { font-weight: 700; }
+    .tooltip .tt-verdict {
+      margin-top: 6px;
+      padding-top: 6px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      font-weight: 700;
+      font-size: 0.7rem;
+    }
+
+    .footer {
+      text-align: center;
+      margin-top: 2rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      font-size: 0.65rem;
+      color: #444;
+    }
+    .footer a { color: #39ff14; text-decoration: none; }
+
+    .live-ticker {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 0.75rem;
+      padding: 0.3rem 0.8rem;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+      font-size: 0.62rem;
+      color: #555;
+      font-family: 'Inter', monospace;
+    }
+    .live-ticker .blink {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: #39ff14;
+      animation: pulse 1.5s infinite;
+    }
+    .live-ticker .ts {
+      color: #39ff14;
+      font-weight: 600;
+    }
+
+    @media (max-width: 768px) {
+      .bar-label { width: 160px; }
+      .bar-prices { width: 130px; }
+      body { padding: 1rem; }
+      .header h1 { font-size: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+  <div id="loadingOverlay">
+    <div class="loader-spinner"></div>
+    <div class="loader-text">Securing Oracle Connection...</div>
+    <div class="loader-subtext">Fetching live arbitrage data from Mac Mini cluster</div>
+    <div class="loader-subtext" style="color: #666; font-size: 0.75rem; margin-top: 1rem;">Average wait: ~3 to 6 seconds</div>
+  </div>
+
+  <canvas id="particles"></canvas>
+  <div class="scanline"></div>
+
+  <div class="header">
+    <h1>🔍 Courtyard.io Arbitrage Scanner</h1>
+    <div class="sub">List Price vs Fair Market Value — Verified from Live Marketplace</div>
+    <div class="verified-badge">
+      <span class="dot"></span>
+      <span id="countBadge">Loading...</span>
+    </div>
+  </div>
+
+  <div class="methodology">
+    <strong>Data Pipeline:</strong> Every listing is scraped directly from courtyard.io/marketplace
+    by an automated Playwright headless browser running every 4 hours on a dedicated server.
+    List prices and FMV values are sourced from Courtyard's own display — no external estimates.
+    Cards without both a visible list price AND FMV are excluded. This page refreshes on every visit.
+  </div>
+
+  <div class="stats-row" id="statsRow"></div>
+
+  <div class="legend">
+    <div class="legend-item"><span class="legend-dot" style="background:#39ff14"></span> Underpriced (>5% below FMV)</div>
+    <div class="legend-item"><span class="legend-dot" style="background:#ef4444"></span> Overpriced (>5% above FMV)</div>
+    <div class="legend-item"><span class="legend-dot" style="background:#555"></span> Fair Value (±5%)</div>
+  </div>
+
+  <div class="chart-container">
+    <div class="chart-title"><span class="icon">📊</span> All Verified Listings — Sorted by Discount %</div>
+    <div class="bar-chart" id="barChart"></div>
+  </div>
+
+  <div class="chart-container">
+    <div class="chart-title"><span class="icon">💎</span> Scatter — Dots Below Diagonal = Underpriced</div>
+    <div class="scatter-container">
+      <canvas class="scatter-canvas" id="scatterCanvas"></canvas>
+    </div>
+  </div>
+
+  <div class="footer">
+    Data captured April 22, 2026 · Prices change in real-time · Not financial advice<br>
+    Built by <a href="https://the-undesirables.com">The Undesirables</a> · TCG Oracle
+    <div class="live-ticker">
+      <span class="blink"></span>
+      SCAN ACTIVE · <span class="ts" id="liveClock"></span>
+    </div>
+  </div>
+
+  <div class="tooltip" id="tooltip">
+    <div class="tt-name" id="ttName"></div>
+    <div class="tt-row"><span class="tt-label">List Price:</span><span class="tt-val" id="ttList"></span></div>
+    <div class="tt-row"><span class="tt-label">Fair Market Value:</span><span class="tt-val" id="ttFmv"></span></div>
+    <div class="tt-row"><span class="tt-label">Discount:</span><span class="tt-val" id="ttDelta"></span></div>
+    <div class="tt-row"><span class="tt-label">Grade:</span><span class="tt-val" id="ttGrade"></span></div>
+    <div class="tt-row"><span class="tt-label">Category:</span><span class="tt-val" id="ttCat"></span></div>
+    <div class="tt-verdict" id="ttVerdict"></div>
+  </div>
+
+  <script src="/courtyard_arb.js"></script>
+</body>
+</html>
