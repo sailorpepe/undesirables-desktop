@@ -3385,9 +3385,9 @@ Output ONLY the raw HTML string inside a \`\`\`html code block. Do not add any c
               </button>
               <button 
                 onClick={() => setShowCamera(true)}
-                className="w-full text-left bg-black border border-[#3b82f6]/40 hover:border-[#3b82f6] hover:bg-[#3b82f6]/10 text-[#3b82f6] hover:text-white p-2 rounded text-[11px] font-mono transition-all flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full text-left bg-black border border-[#f59e0b]/40 hover:border-[#f59e0b] hover:bg-[#f59e0b]/10 text-[#f59e0b] hover:text-white p-2 rounded text-[11px] font-mono transition-all flex items-center justify-center gap-2 cursor-pointer shadow-[0_0_8px_rgba(245,158,11,0.1)] hover:shadow-[0_0_15px_rgba(245,158,11,0.3)]"
               >
-                <span className="text-sm">📷</span> OPTICAL CAPTURE
+                <span className="text-sm">📸</span> SCAN CARD
               </button>
               <div className="text-[10px] font-mono text-[#e0faec]/30 flex items-center justify-between pt-1 px-1">
                 <span>OLLAMA_DIRECT — {selectedModel}</span>
@@ -5159,7 +5159,15 @@ Output ONLY the raw HTML string inside a \`\`\`html code block. Do not add any c
             onClose={() => setShowCamera(false)} 
             onCapture={(paths) => {
               window.__droppedImages = paths;
-              setLogs(prev => [...prev, { role: 'system', content: `[SYS] Intercepted ${paths.length} hardware optical frame(s). Preparing local TCG extraction stream.` }]);
+              setShowCamera(false);
+              setLogs(prev => [...prev, { role: 'system', content: `[SYS] 📸 Card scan captured — ${paths.length} frame(s). Launching TCG identification pipeline...` }]);
+              // Auto-trigger the full card scan pipeline:
+              // 1. Vision AI identifies the card from the photo
+              // 2. grade_tcg_card scores the condition
+              // 3. search_ebay_market fetches live pricing
+              setTimeout(() => {
+                handleSend(`Scan this trading card image. First identify what card it is (name, set, card number, game). Then grade it using grade_tcg_card with the captured image. Finally search eBay for its current market price using search_ebay_market. Give me the full report.`);
+              }, 300);
             }} 
           />
         </Suspense>
