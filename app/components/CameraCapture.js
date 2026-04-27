@@ -168,7 +168,7 @@ export default function CameraCapture({ onCapture, onClose }) {
       <div className="bg-[#051108] border border-[#39ff14]/30 rounded-lg p-4 shadow-[0_0_30px_rgba(57,255,20,0.15)] flex flex-col gap-4 max-w-2xl w-full">
         <div className="flex justify-between items-center text-[#e0faec] flex-wrap gap-2">
           <h3 className="text-[#39ff14] text-lg uppercase tracking-widest font-bold flex items-center gap-2">
-            <Camera /> Optical Capture
+            <Camera /> Card Scanner
           </h3>
           <div className="flex items-center gap-4">
             {devices.length > 1 && (
@@ -203,9 +203,17 @@ export default function CameraCapture({ onCapture, onClose }) {
                 muted 
               />
               
-              {/* HUD Overlay */}
-              <div className="absolute inset-0 pointer-events-none flex items-center justify-center opacity-30">
-                <div className="w-1/2 h-2/3 border-2 border-dashed border-[#39ff14] rounded"></div>
+              {/* Card-shaped scanning overlay */}
+              <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                <div className="relative" style={{width: '55%', aspectRatio: '2.5/3.5'}}>
+                  <div className="absolute inset-0 border-2 border-[#39ff14] rounded-lg opacity-60"></div>
+                  <div className="absolute -top-1 -left-1 w-6 h-6 border-t-3 border-l-3 border-[#39ff14] rounded-tl-lg"></div>
+                  <div className="absolute -top-1 -right-1 w-6 h-6 border-t-3 border-r-3 border-[#39ff14] rounded-tr-lg"></div>
+                  <div className="absolute -bottom-1 -left-1 w-6 h-6 border-b-3 border-l-3 border-[#39ff14] rounded-bl-lg"></div>
+                  <div className="absolute -bottom-1 -right-1 w-6 h-6 border-b-3 border-r-3 border-[#39ff14] rounded-br-lg"></div>
+                  <div className="absolute top-2 left-0 right-0 text-center text-[#39ff14] text-[9px] font-mono uppercase tracking-[0.3em] opacity-60">Align Card Here</div>
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#39ff14]/40 animate-pulse" style={{animation: 'scanLine 2s ease-in-out infinite'}}></div>
+                </div>
               </div>
 
               {/* Recording Indicator */}
@@ -226,7 +234,7 @@ export default function CameraCapture({ onCapture, onClose }) {
                disabled={isRecording}
                className="flex-1 bg-[#39ff14]/10 hover:bg-[#39ff14]/20 border border-[#39ff14]/50 text-[#39ff14] p-3 rounded uppercase text-sm tracking-widest cursor-pointer transition-all disabled:opacity-50"
              >
-               Take Photo
+               📸 SCAN CARD
              </button>
              <button 
                onClick={startVideo}
