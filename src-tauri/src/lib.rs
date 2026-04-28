@@ -411,6 +411,7 @@ async fn restart_mcp_server(app: tauri::AppHandle, _server_name: String) -> Resu
     let mut command = std::process::Command::new(venv_python.to_string_lossy().as_ref());
     command.arg(server_script.to_string_lossy().as_ref())
         .current_dir(&bundle_dir)
+        .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::from(log_file))
         .stderr(std::process::Stdio::from(err_file));
 
@@ -420,7 +421,19 @@ async fn restart_mcp_server(app: tauri::AppHandle, _server_name: String) -> Resu
         command.process_group(0);
     }
 
-    let child = command.spawn().map_err(|e| format!("Failed to spawn native backend: {}", e))?;
+    let mut child = command.spawn().map_err(|e| format!("Failed to spawn native backend: {}", e))?;
+
+    // HIGH-SECURITY: Pipe eBay BYOK credentials via anonymous stdin to avoid ENV leakage
+    if let Ok(ebay_keys) = _get_ebay_credentials_internal() {
+        if let Some(mut stdin) = child.stdin.take() {
+            use std::io::Write;
+            let payload = serde_json::json!({
+                "type": "SECURE_CREDENTIALS",
+                "ebay_byok": serde_json::from_str::<serde_json::Value>(&ebay_keys).unwrap_or_default()
+            });
+            let _ = writeln!(stdin, "{}", payload.to_string());
+        }
+    }
 
     // HIGH-4: Track via native Tauri state, no flat file
     if let Some(state) = app.try_state::<ProcessState>() {
@@ -805,6 +818,35 @@ fn get_enclave_key() -> Result<String, String> {
     }
 }
 
+// Internal helper for eBay credentials without returning Result String for Tauri IPC
+fn _get_ebay_credentials_internal() -> Result<String, String> {
+    use keyring::Entry;
+    let entry = Entry::new("com.undesirables.desktop.ebay_byok", "api_keys")
+        .map_err(|e| format!("Failed to initialize keyring: {}", e))?;
+    entry.get_password().map_err(|e| format!("Keychain read error: {}", e))
+}
+
+#[tauri::command]
+fn get_ebay_credentials() -> Result<String, String> {
+    _get_ebay_credentials_internal()
+}
+
+#[tauri::command]
+fn set_ebay_credentials(app_id: String, secret: String) -> Result<bool, String> {
+    use keyring::Entry;
+    let entry = Entry::new("com.undesirables.desktop.ebay_byok", "api_keys")
+        .map_err(|e| format!("Failed to initialize keyring: {}", e))?;
+    
+    let payload = serde_json::json!({
+        "appId": app_id,
+        "secret": secret
+    }).to_string();
+
+    entry.set_password(&payload)
+        .map_err(|e| format!("Failed to store key in native keychain: {}", e))?;
+    Ok(true)
+}
+
 #[tauri::command]
 async fn fetch_tcg_data(path: String) -> Result<serde_json::Value, String> {
     let url = format!("https://tcgcsv.com/tcgplayer/{}", path);
@@ -854,7 +896,9 @@ pub fn run() {
             stop_acestep_server,
             get_system_ram,
             get_enclave_key,
-            fetch_tcg_data
+            fetch_tcg_data,
+            set_ebay_credentials,
+            get_ebay_credentials
         ])
         .setup(|app| {
             // SECURITY (MED-5): Enable structured logging in ALL builds for incident forensics

@@ -1,10 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Key, ShieldCheck, Database, ArrowRight, ExternalLink } from 'lucide-react';
-import { load } from '@tauri-apps/plugin-store';
-
-// Use Tauri's encrypted plugin-store (backed by OS-level file protection)
-// instead of the Stronghold vault which has cross-build key derivation issues
-const getStore = async () => await load('credentials.json', { autoSave: true });
+import { invoke } from '@tauri-apps/api/core';
 
 export default function EbaySetup({ onSuccess }) {
   const [appId, setAppId] = useState('');
@@ -14,15 +10,15 @@ export default function EbaySetup({ onSuccess }) {
   useEffect(() => {
     async function loadStore() {
       try {
-        const store = await getStore();
-        const savedAppId = await store.get('undesirables_ebay_app_id');
-        const savedSecret = await store.get('undesirables_ebay_client_secret');
-        
-        if (savedAppId && savedSecret) {
-          onSuccess(savedAppId, savedSecret);
+        const credentialsStr = await invoke('get_ebay_credentials');
+        if (credentialsStr) {
+          const creds = JSON.parse(credentialsStr);
+          if (creds.appId && creds.secret) {
+            onSuccess(creds.appId, creds.secret);
+          }
         }
       } catch (e) {
-        console.error("Failed to load credentials:", e);
+        console.log("No existing BYOK credentials found in secure keychain.");
       }
     }
     loadStore();
@@ -32,14 +28,13 @@ export default function EbaySetup({ onSuccess }) {
     if (appId.trim() && clientSecret.trim()) {
       setIsConnecting(true);
       try {
-        const store = await getStore();
-        await store.set('undesirables_ebay_app_id', appId.trim());
-        await store.set('undesirables_ebay_client_secret', clientSecret.trim());
-        await store.save();
-        
+        await invoke('set_ebay_credentials', { 
+          appId: appId.trim(), 
+          secret: clientSecret.trim() 
+        });
         onSuccess(appId.trim(), clientSecret.trim());
       } catch (e) {
-        console.error('Failed to save credentials:', e);
+        console.error('Failed to save credentials to keychain:', e);
         setIsConnecting(false);
       }
     }
