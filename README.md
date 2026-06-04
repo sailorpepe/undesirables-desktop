@@ -343,3 +343,34 @@ Business Source License (BSL) 1.1 — Proprietary license converting to Open Sou
 ## ⚖️ Legal Disclaimer
 
 **Not Financial Advice:** The Market Oracle, TCG Card Grader, and all AI-generated outputs are for **entertainment and educational purposes only**. AI models are prone to hallucinated metrics, inaccurate predictions, and stale caching. Do not execute trades, buy cards, or make financial decisions based on the outputs of this software. The creators accept no liability for financial losses.
+
+## 📝 License & Commercial Use
+
+This project is licensed under the **[Business Source License 1.1 (BUSL-1.1)](LICENSE)**.
+
+We build in public and support the developer ecosystem — but we also protect the infrastructure and IP of **The Undesirables LLC**.
+
+### ✅ What You CAN Do (Free)
+
+- **Personal & Educational Use** — Download, modify, and run locally for learning, research, or personal projects.
+- **Non-Competing Applications** — Integrate our packages into your app, provided your app does not offer TCG market intelligence, pricing aggregation, AI card grading, or on-chain price oracle services as its primary function.
+- **MCP / Agent Integration** — Connect your AI agent to our tools for non-commercial use.
+- **Community Contributions** — Security audits, bug fixes, and PRs are always welcome.
+
+### 🚫 What You CANNOT Do (Use Limitation)
+
+- **Competing Service** — You may not use this code to operate a competing TCG market intelligence, pricing aggregation, AI card grading, or on-chain price oracle service.
+- **Commercial Resale** — You may not wrap our API, data pipelines, or AI models into a paid service without a commercial license.
+- **Hosted SaaS** — You may not host this software as a service for third parties without written permission.
+
+### 🔓 Open-Source Conversion
+
+On **June 1, 2030** (or 4 years after the first public release of each version), this code automatically converts to the **MIT License** — fully open source, forever.
+
+### 🤝 Commercial Licensing
+
+Building a commercial product? Want guaranteed API access or white-label integration? Contact us:
+
+📧 **theundesirables7@gmail.com** · 🐦 **[@undesirables_ai](https://x.com/undesirables_ai)**
+
+© 2026 The Undesirables LLC
