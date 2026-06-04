@@ -2,23 +2,38 @@ Business Source License 1.1
 
 Parameters
 
-Licensor:             The Undesirables LLC
-Licensed Work:        the-undesirables-desktop
-                      The Licensed Work is (c) 2026 The Undesirables LLC.
-Additional Use Grant: You may make production use of the Licensed Work,
-                      provided such use does not include offering the
-                      Licensed Work to third parties on a hosted or
-                      embedded basis in a manner that competes with The
-                      Undesirables LLC's paid offerings.
-Change Date:          2030-04-25
-Change License:       Apache License, Version 2.0
+  Licensor:             The Undesirables LLC
+  Licensed Work:        Undesirables UI
+                        Copyright (c) 2026 The Undesirables LLC.
+                        All Rights Reserved.
+  Additional Use Grant: You may make production use of the Licensed Work,
+                        provided Your use does not include offering the
+                        Licensed Work to third parties on a hosted or
+                        embedded basis as a Competitive Offering.
 
-For information about alternative licensing arrangements for the Licensed
-Work, please contact: theundesirables7@gmail.com
+                        A "Competitive Offering" is a product or service
+                        offered to third parties on a paid basis (including
+                        through paid support arrangements) that provides
+                        TCG market intelligence, pricing aggregation, AI
+                        card grading, or on-chain price oracle functionality
+                        as a primary feature.
 
-Notice
+                        If Your product is not a Competitive Offering when
+                        You first make it generally available, it will not
+                        become a Competitive Offering later due to the
+                        Licensor releasing a new version of the Licensed
+                        Work with additional capabilities.
 
-Business Source License 1.1
+                        Products that are not provided on a paid basis are
+                        not Competitive Offerings.
+
+  Change Date:          June 1, 2030
+  Change License:       MIT
+
+For alternative licensing arrangements, contact:
+  theundesirables7@gmail.com
+
+─────────────────────────────────────────────────────────────────────────
 
 Terms
 
@@ -40,8 +55,8 @@ resellers, or you must refrain from using the Licensed Work.
 
 All copies of the original and modified Licensed Work, and derivative works
 of the Licensed Work, are subject to this License. This License applies
-separately for each version of the Licensed Work and the Change Date may vary
-for each version of the Licensed Work released by Licensor.
+separately for each version of the Licensed Work and the Change Date may
+vary for each version of the Licensed Work released by Licensor.
 
 You must conspicuously display this License on each original or modified copy
 of the Licensed Work. If you receive the Licensed Work in original or
@@ -62,7 +77,6 @@ EXPRESS OR IMPLIED, INCLUDING (WITHOUT LIMITATION) WARRANTIES OF
 MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, AND
 TITLE.
 
-MariaDB hereby grants you permission to use this License's text to license
-your works, and to refer to it using the trademark "Business Source License",
-as long as you comply with the Coward Conditions of MariaDB's Business Source
-License Trademark Policy available at https://mariadb.com/bsl11/.
+─────────────────────────────────────────────────────────────────────────
+"Business Source License" is a trademark of MariaDB Corporation Ab.
+BUSL-1.1 license template: https://mariadb.com/bsl11/
