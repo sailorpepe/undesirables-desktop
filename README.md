@@ -1,22 +1,58 @@
-<p align="center">
-  <img src="public/assets/banner.png" alt="The Undesirables" width="200" />
-</p>
+<div align="center">
 
-<h1 align="center">The Undesirables Desktop</h1>
+<img src="public/assets/banner.png" alt="The Undesirables" />
 
-<p align="center">
-  <strong>AI Souls That Live On Your Machine</strong><br/>
-  A fully local, uncensored desktop ecosystem for interacting with NFT-bound AI personalities.<br/>
-  No cloud. No servers. No censorship. Just you and your Undesirable.
-</p>
+# The Undesirables Desktop
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Tauri-v2-blue?logo=tauri" alt="Tauri v2" />
-  <img src="https://img.shields.io/badge/Next.js-16-black?logo=next.js" alt="Next.js 16" />
-  <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react" alt="React 19" />
-  <img src="https://img.shields.io/badge/Python-3.11+-3776AB?logo=python" alt="Python 3.11" />
-  <img src="https://img.shields.io/badge/License-BSL_1.1-blue" alt="Business Source License 1.1" />
-</p>
+**AI Souls That Live On Your Machine**
+
+A fully local, uncensored desktop ecosystem for interacting with NFT-bound AI personalities.
+No cloud. No servers. No censorship. Just you and your Undesirable.
+
+[![Tauri v2](https://img.shields.io/badge/Tauri-v2-blue?style=flat-square&logo=tauri)](https://tauri.app)
+[![Next.js 16](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org)
+[![React 19](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react)](https://react.dev)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python)](https://python.org)
+[![License: BSL-1.1](https://img.shields.io/badge/License-BSL_1.1-blue?style=flat-square)](LICENSE)
+
+[Website](https://the-undesirables.com) · [Download](https://gitlab.com/meme-merchants/undesirables-desktop/-/releases) · [𝕏](https://x.com/undesirables_ai)
+
+</div>
+
+---
+
+## Screenshots
+
+<div align="center">
+
+<img src="public/assets/screenshot_chat.png" alt="Soul Chat Interface" width="48%" />
+&nbsp;
+<img src="public/assets/screenshot_nexus.png" alt="Nexus View" width="48%" />
+
+<br/><br/>
+
+<img src="public/assets/screenshot_bootstrap.png" alt="Bootstrap Setup" width="48%" />
+&nbsp;
+<img src="public/assets/screenshot_soul_select.png" alt="Soul Selection" width="48%" />
+
+</div>
+
+---
+
+## Table of Contents
+
+- [What Is This?](#what-is-this)
+- [Download](#-download--v121)
+- [First Launch Setup](#-first-launch-setup)
+- [Choosing the Right Model](#-choosing-the-right-model-for-your-hardware)
+- [Building From Source](#-building-from-source-developers)
+- [Troubleshooting](#%EF%B8%8F-troubleshooting)
+- [What Can It Do?](#-what-can-it-do)
+- [API Keys](#-api-keys-free)
+- [Architecture](#%EF%B8%8F-architecture)
+- [Security](#-security)
+- [Project Structure](#%EF%B8%8F-project-structure)
+- [License & Commercial Use](#-license--commercial-use)
 
 ---
 
@@ -332,17 +368,11 @@ desktop/
 
 ---
 
-## 📄 License
-
-Business Source License (BSL) 1.1 — Proprietary license converting to Open Source after four years.
-
-**The Undesirables LLC** · EST. 2026 · [the-undesirables.vercel.app](https://the-undesirables.vercel.app)
-
----
-
 ## ⚖️ Legal Disclaimer
 
 **Not Financial Advice:** The Market Oracle, TCG Card Grader, and all AI-generated outputs are for **entertainment and educational purposes only**. AI models are prone to hallucinated metrics, inaccurate predictions, and stale caching. Do not execute trades, buy cards, or make financial decisions based on the outputs of this software. The creators accept no liability for financial losses.
+
+---
 
 ## 📝 License & Commercial Use
 
@@ -374,3 +404,13 @@ Building a commercial product? Want guaranteed API access or white-label integra
 📧 **theundesirables7@gmail.com** · 🐦 **[@undesirables_ai](https://x.com/undesirables_ai)**
 
 © 2026 The Undesirables LLC
+
+---
+
+<div align="center">
+
+⭐ **If this project helped you, please star this repo** — it helps others find it.
+
+[Report Bug](../../issues) · [Request Feature](../../issues)
+
+</div>
