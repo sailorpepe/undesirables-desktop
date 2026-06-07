@@ -895,7 +895,6 @@ pub fn run() {
             start_acestep_server,
             stop_acestep_server,
             get_system_ram,
-            get_enclave_key,
             fetch_tcg_data,
             set_ebay_credentials,
             get_ebay_credentials

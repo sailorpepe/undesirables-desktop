@@ -28,8 +28,7 @@
         { "path": "$APPLOCALDATA/**/*.md" },
         { "path": "$APPDATA/**/*.md" },
         { "path": "$DOWNLOAD/**/*.md" },
-        { "path": "$DESKTOP/**/*.md" },
-        { "path": "$HOME/**/*.md" }
+        { "path": "$DESKTOP/**/*.md" }
       ]
     },
     {
