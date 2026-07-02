@@ -1575,6 +1575,21 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
           {
             type: "function",
             function: {
+              name: "card_forecast",
+              description: "FREE conformal 30-day risk forecast for any of 442K+ trading cards — honest calibrated VaR plus Safe-Hold and Momentum letter grades and a plain-English read. This is the honest DEFAULT forecast (use monte_carlo_simulation only for an opt-in stochastic view). Call after grading a card to complete the report.",
+              parameters: {
+                type: "object",
+                properties: {
+                  card_name: { type: "string", description: "Card name to forecast (e.g. 'Charizard Base Set Holo')." },
+                  product_id: { type: "number", description: "TCGPlayer product id, if already known (skips name resolution)." }
+                },
+                required: ["card_name"]
+              }
+            }
+          },
+          {
+            type: "function",
+            function: {
               name: "grade_tcg_card",
               description: "Analyze a Trading Card (Pokémon, Magic, etc) for PSA/Beckett grading using a local Vision AI.",
               parameters: {
@@ -1802,7 +1817,7 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
           'generate_3d_object', 'image_to_3d', 'self_reflect',
           'get_voice_preset', 'web_search', 'upsert_memory_node',
           'create_memory_relation', 'query_memory_graph', 'get_memory_subgraph',
-          'market_depth_analysis', 'monte_carlo_simulation',
+          'market_depth_analysis', 'monte_carlo_simulation', 'card_forecast',
           'generate_music', 'analyze_beats', 'memory_save', 'memory_recall',
           'query_ollama', 'get_skill', 'list_skills',
         ]);
@@ -5166,7 +5181,7 @@ Output ONLY the raw HTML string inside a \`\`\`html code block. Do not add any c
               // 2. grade_tcg_card scores the condition
               // 3. search_ebay_market fetches live pricing
               setTimeout(() => {
-                handleSend(`Scan this trading card image. First identify what card it is (name, set, card number, game). Then grade it using grade_tcg_card with the captured image. Finally search eBay for its current market price using search_ebay_market. Give me the full report.`);
+                handleSend(`Scan this trading card image. First identify what card it is (name, set, card number, game). Then grade it using grade_tcg_card with the captured image. Then search eBay for its current market price using search_ebay_market. Finally pull its 30-day risk outlook with card_forecast (Safe-Hold + Momentum grades). Give me the full report.`);
               }, 300);
             }} 
           />
