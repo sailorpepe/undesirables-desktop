@@ -1576,7 +1576,7 @@ export default function ChatInterface({ workspacePath, bootToken, onExit, isRest
             type: "function",
             function: {
               name: "card_forecast",
-              description: "FREE conformal 30-day risk forecast for any of 442K+ trading cards — honest calibrated VaR plus Safe-Hold and Momentum letter grades and a plain-English read. This is the honest DEFAULT forecast (use monte_carlo_simulation only for an opt-in stochastic view). Call after grading a card to complete the report.",
+              description: "FREE conformal 30-day risk forecast for any of 446K+ trading cards — honest calibrated VaR plus Safe-Hold and Momentum letter grades and a plain-English read. This is the honest DEFAULT forecast (use monte_carlo_simulation only for an opt-in stochastic view). Call after grading a card to complete the report.",
               parameters: {
                 type: "object",
                 properties: {
