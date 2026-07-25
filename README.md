@@ -4,6 +4,15 @@
 
 # The Undesirables Desktop
 
+## 🔌 Connect over MCP — one URL, no install
+
+```
+https://mcp.the-undesirables.com
+```
+
+Paste into any MCP client (Claude, Cursor, ChatGPT) — free card search & forecasts, paid calls via x402.
+
+
 **AI Souls That Live On Your Machine**
 
 A fully local, uncensored desktop ecosystem for interacting with NFT-bound AI personalities.
