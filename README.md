@@ -261,7 +261,7 @@ Talk to your NFT's AI personality. Each Soul has unique traits, memories, emotio
 Drop a photo of any Pokémon, Magic, or Yu-Gi-Oh! card. The vision AI analyzes centering, surface, corners, and edges to predict a PSA/Beckett grade — then pulls real eBay market data for that card at that grade.
 
 ### 📊 Market Oracle
-Real-time eBay market intelligence for physical collectibles. Track sold listings, price trends, and market depth across any product category — powered by the eBay Browse API running entirely on your machine.
+eBay market intelligence for physical collectibles. Track active listings (asking prices — sold data is not available), price trends, and market depth across any product category — powered by the eBay Browse API running entirely on your machine.
 
 ### 🎵 Music Studio (ACE-Step AI)
 Generate original instrumentals using the ACE-Step local AI model. Choose genre presets (Drill, Lo-Fi, Trap, etc.), customize prompts with AI enhancement, and render WAV files — all 100% locally. Tracks save to `~/Documents/Meme Merchants/ace_output/`.
